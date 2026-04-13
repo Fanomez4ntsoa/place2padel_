@@ -410,6 +410,21 @@ GET    /api/v1/tournaments/{id}/qrcode
 
 ---
 
+## 🔑 DÉPENDANCES EXTERNES — À CONFIGURER AVANT MISE EN PROD
+
+| Service | Variables | Où obtenir | Priorité |
+|---------|-----------|------------|----------|
+| **Google OAuth** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud Console → Credentials → OAuth 2.0 Client ID | 🔴 Phase 1 |
+| **IONOS S3** | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`, `AWS_ENDPOINT`, `AWS_USE_PATH_STYLE_ENDPOINT=true` | Compte IONOS → Object Storage | 🔴 Phase 1 |
+| **Resend (email)** | `RESEND_API_KEY`, `SENDER_EMAIL` | resend.com → API Keys | 🔴 Phase 1 |
+| **VAPID (Web Push)** | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | `php artisan webpush:vapid` | 🟡 Phase 2 |
+| **Stripe (paiement)** | `STRIPE_KEY`, `STRIPE_SECRET` | stripe.com → Dashboard | 🟡 Phase 2 |
+
+> ⚠️ Sans ces credentials, les features correspondantes crasheront en prod.
+> Les tests PHPUnit utilisent des mocks — ils passent sans ces clés.
+
+---
+
 ## 🔧 ENVIRONNEMENT
 
 ### Variables .env Laravel (à configurer)
@@ -606,7 +621,8 @@ php artisan make:event TournamentCreated
 
 ---
 
-## 📌 PIÈGES À ÉVITER
+*Dernière mise à jour : 13 avril 2026*
+*Vision & validation : Fanomezantsoa | Implémentation : Claude Code*
 
 1. **Sur-architecture** : pas de microservices d'emblée — Laravel monolithe modulaire d'abord
 2. **100% reproduction** : ne pas tout migrer, MVP d'abord
@@ -632,19 +648,22 @@ URL Prod actuelle : https://www.placetopadel.com
 
 ## 🗓️ PROGRESSION
 
-### Phase 0 — Setup
+### Phase 0 — Setup ✅ COMPLÈTE
 - [x] Laravel 12 installé dans `backend/`
 - [x] Structure modulaire `app/Modules/` créée (10 modules)
 - [x] `.env.example` configuré
-- [x] Migrations créées et validées : clubs, users, user_profiles, user_preferred_levels, user_availabilities
-- [ ] `php artisan migrate` exécuté
-- [ ] Seeders : ClubsSeeder (86 clubs) + FFTRankingsSeeder (141k)
-- [ ] Laravel Sanctum (`php artisan install:api`)
-- [ ] Laravel Horizon configuré
+- [x] Migrations créées et validées : clubs, users, user_profiles, user_preferred_levels, user_availabilities, tenup_rankings
+- [x] `php artisan migrate` exécuté
+- [x] ClubsSeeder → 85 clubs seedés (scrape API Emergent + mapping département/région)
+- [x] FFTRankingsSeeder → 145 821 licenciés FFT seedés (LOAD DATA INFILE en 3.3s)
+- [x] Laravel Sanctum installé (`php artisan install:api`)
+- [x] Laravel Horizon configuré (3 supervisors Redis : high / default / low)
 
-### Phase 1 — Core
-- [ ] Models Eloquent (Club, User, UserProfile)
-- [ ] Module Auth (Register, Login, Refresh, Google OAuth, Logout)
+### Phase 1 — Core (en cours)
+- [x] Models Eloquent : User, UserProfile, Club, UserPreferredLevel, UserAvailability
+- [x] Module Auth complet : Register, Login, Refresh, Google OAuth, Logout, Logout-all, Me
+- [x] 32 tests PHPUnit verts (149 assertions)
+- [ ] ⚠️ Test Insomnia Google OAuth → en attente credentials Google client
 - [ ] Module User / Profile
 - [ ] Module Club (search, détail)
 - [ ] Module Tournament (CRUD + inscription)
@@ -666,5 +685,43 @@ URL Prod actuelle : https://www.placetopadel.com
 
 ---
 
-*Dernière mise à jour : 13 avril 2026*
-*Vision & validation : Fanomezantsoa | Implémentation : Claude Code*
+## 📌 DÉCISIONS TECHNIQUES ACTÉES (mis à jour)
+
+### Auth
+- 2 tokens Sanctum : access (60min) + refresh (7j) avec rotation
+- Refresh rotation stricte : `$token->delete()` avant d'émettre la nouvelle paire
+- `RequireAccessToken` middleware custom : rejette les refresh tokens sur /me, /logout, /logout-all
+- Google OAuth : Socialite direct (pas proxy Emergent), `stateless()`
+- Email linking : refus strict si `auth_type='local'` existe avec même email (Phase 2 : liaison explicite)
+- `email_verified_at = now()` automatique sur compte Google
+- `FFTSyncJob` dispatché async après inscription (local + Google)
+
+### Clubs
+- 85 clubs (vs 86 estimé initialement — écart acceptable)
+- Colonne `department` CHAR(3) ajoutée (métropole 2 chars + DOM-TOM 3 chars)
+- Slug format : `slug-{postal_code}` (unique par construction)
+- `latitude/longitude` NULL pour l'instant → `GeocodeClubsJob` Phase 2
+- Commande Artisan `clubs:scrape-from-emergent` pour rafraîchir les données
+
+### FFT Rankings
+- 145 821 licenciés (avril 2026, vs 141 351 estimé — PadelSpeak a étendu la couverture)
+- Source : PadelSpeak PDFs mensuels (H + F), parsés via PyMuPDF
+- Import : LOAD DATA LOCAL INFILE MySQL (~3.3s pour 145k rows)
+- Script : `backend/scripts/extract_fft_rankings.py` (one-shot, à relancer mensuellement)
+- `ImportFFTRankingsJob` mensuel automatique → Phase 2
+- ⚠️ CSV (16 MB) dans le repo → Phase 2 : Git LFS ou génération runtime
+
+### Commandes utiles ajoutées
+```bash
+# Scrape clubs depuis API Emergent
+cd ~/project/place2padel/backend && php artisan clubs:scrape-from-emergent
+
+# Regénérer CSV FFT (18min, PDFs PadelSpeak)
+cd ~/project/place2padel/backend && python3 scripts/extract_fft_rankings.py
+
+# Lancer Horizon (monitoring queues)
+cd ~/project/place2padel/backend && php artisan horizon
+
+# Règle obligatoire — toujours préfixer avec :
+cd ~/project/place2padel/backend && [commande]
+```

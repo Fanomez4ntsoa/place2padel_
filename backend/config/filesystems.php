@@ -15,6 +15,9 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    // Disque dédié aux avatars — par défaut S3, bascule possible vers 'public' en dev local.
+    'avatars' => env('AVATAR_DISK', 's3'),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks

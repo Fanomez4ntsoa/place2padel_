@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -55,6 +56,25 @@ class User extends Authenticatable
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    /**
+     * `picture_url` stocke le PATH S3 brut en DB (ex: "avatars/{uuid}/xyz.jpg").
+     * L'accessor renvoie l'URL complète construite par Storage au read.
+     * Pour accéder au path brut (ex: delete de l'ancien avatar) :
+     *   $user->getRawOriginal('picture_url')
+     */
+    public function getPictureUrlAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        // Pass-through pour les URLs absolues (avatar Google CDN, etc.).
+        // Seuls les paths S3 relatifs sont passés à Storage::url().
+        if (preg_match('#^https?://#', $value)) {
+            return $value;
+        }
+        return Storage::disk(config('filesystems.avatars', 's3'))->url($value);
     }
 
     public function club(): BelongsTo
