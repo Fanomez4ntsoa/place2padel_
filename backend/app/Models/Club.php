@@ -21,6 +21,7 @@ class Club extends Model
         'address',
         'city',
         'postal_code',
+        'department',
         'region',
         'country',
         'latitude',
