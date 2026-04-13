@@ -667,20 +667,42 @@ URL Prod actuelle : https://www.placetopadel.com
 - [x] Laravel Sanctum installé (`php artisan install:api`)
 - [x] Laravel Horizon configuré (3 supervisors Redis : high / default / low)
 
-### Phase 1 — Core (en cours)
-- [x] Models Eloquent : User, UserProfile, Club, UserPreferredLevel, UserAvailability, ClubSubscription
-- [x] Module Auth complet : Register, Login, Refresh, Google OAuth, Logout, Logout-all, Me
-- [x] Module User / Profile : show (3 niveaux), update, search, photo S3, FFT sync/search
-- [x] Module Club : search, détail, subscribe/unsubscribe, liste abonnements
-- [x] 97 tests PHPUnit verts (392 assertions)
+### Phase 1 — Core ✅ COMPLÈTE
+- [x] Models Eloquent : User, UserProfile, Club, UserPreferredLevel, UserAvailability, ClubSubscription, Tournament, TournamentTeam
+- [x] Module Auth : Register, Login, Refresh, Google OAuth, Logout, Logout-all, Me (6 endpoints + 2 OAuth)
+- [x] Module User / Profile : show (3 niveaux), update, search, photo S3, FFT sync/search (6 endpoints)
+- [x] Module Club : search, détail, subscribe/unsubscribe, liste abonnements (5 endpoints)
+- [x] Module Tournament : CRUD, inscription/désinscription, waitlist auto, launch minimal, QR code (10 endpoints)
+- [x] 132 tests PHPUnit verts (488 assertions)
+- [x] Insomnia validé sur tous les modules
 - [ ] ⚠️ Test Insomnia Google OAuth → en attente credentials Google
 - [ ] ⚠️ Test Insomnia Photo upload → en attente credentials IONOS S3
-- [ ] Module Tournament (CRUD + inscription) ← dernier module Phase 1
 
-### Phase 2 — Moteur compétition
-- [ ] Match Engine (poules, brackets, formats auto)
-- [ ] Match Live (score, double validation)
-- [ ] Notifications (queues Redis)
+### Récap Phase 1 — endpoints
+| Module | Endpoints | Tests |
+|--------|-----------|-------|
+| Auth | 8 | 32 |
+| User/Profile | 6 | 45 |
+| Club | 5 | 20 |
+| Tournament | 10 | 35 |
+| **TOTAL** | **31** | **132** |
+
+### Phase 2 — Moteur compétition (prochaine)
+- [ ] MatchEngineService (remplace stub `GenerateMatchesListener`)
+  - Formats auto selon nb équipes (élim directe / poules / hybride)
+  - Distribution serpentin têtes de série
+  - Gestion BYEs
+  - Reclassement dynamique
+- [ ] Migrations Phase 2 : matches, pools, team_states
+- [ ] Match Live (score temps réel, double validation capitaines)
+  - Score 9 jeux, tie-break à 8-8
+  - PUT /matches/{id}/score
+  - PUT /matches/{id}/validate
+- [ ] Notifications (queues Redis + Laravel Horizon)
+  - In-app + Web Push (VAPID)
+  - Milestones 50%/90%/100%
+  - Convocations au launch
+  - Rappels 24h/1h
 
 ### Phase 3 — Social & Paiement
 - [ ] Matchmaking partenaires + feature "Je suis seul pour ce tournoi"
