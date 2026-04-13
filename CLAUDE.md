@@ -1,5 +1,5 @@
 # CLAUDE.md — Place2Padel
-## Fichier de référence — À lire au début de chaque session Claude Code
+## Fichier de référence — À lire intégralement au début de chaque session Claude Code
 
 ---
 
@@ -15,17 +15,96 @@ Objectif : devenir le standard national d'organisation de tournois (remplacer Ex
 
 ---
 
-## 🚫 RÈGLE FONDAMENTALE
+## 🧭 VISION & PROMESSE PRODUIT
+
+### L'ambition
+PlaceToPadel n'est pas une app de padel générique. C'est une **plateforme centrale** pour les joueurs licenciés, juges arbitres et clubs. Point de départ : le padel est massif mais ses outils d'organisation sont encore faibles (Excel, WhatsApp, papier).
+
+### Promesse produit principale
+> **"Créer un tournoi en 5 minutes, puis ne plus rien gérer"**
+
+Cela implique : création rapide, inscriptions automatiques, tableau auto, notifications auto, score live, communication intégrée.
+
+### Utilisateur cible
+**Joueurs licenciés FFT** en priorité — pas le grand public. Profils sérieux, niveau vérifiable, points FFT disponibles. Meilleure qualité de matching, meilleure valeur pour les tournois.
+
+### Feature différenciante — Matching tournoi
+La feature la plus puissante n'est pas le swipe global. C'est :
+> **"Je suis seul pour ce tournoi"**
+
+Un joueur se déclare seul sur un tournoi précis → les autres joueurs seuls intéressés par ce même tournoi apparaissent → mise en relation dans un contexte concret → taux de conversion fort.
+
+### Structure 5 onglets (navbar)
+| Onglet | Rôle |
+|--------|------|
+| **Actu** | Fil actualité intelligent (tournois, résultats, clubs) — rétention |
+| **Tournois** | Cœur business — trouver, créer, vivre un tournoi |
+| **Cockpit** | Centre de contrôle personnel — signature UX orange surélevé |
+| **Partenaires** | Matching partenaires lié au jeu réel |
+| **Clubs** | Exploration locale — OS local du padel |
+
+### Salon tournoi
+Chaque tournoi génère son propre espace de communication (remplace les groupes WhatsApp) : annonces, horaires, échanges, suivi des matchs.
+
+### Stratégie de lancement
+**LANCER > PARFAIRE** — 10 joueurs → 50 → 100. Observer, corriger, accélérer.
+
+### Monétisation
+- Phase 1 : **Gratuit** (adoption + dépendance)
+- Phase 2 : **1€/mois** (après validation usage réel)
+- Stripe intégré en Phase 2 uniquement
+
+### Expansion future
+Espagne identifiée comme extension naturelle. **Construire dès maintenant avec i18n en tête** (Laravel `lang/`, colonnes `locale`, slugs multilingues).
+
+---
+
+## 🔴 INSTRUCTION CRITIQUE — PROJET EMERGENT (lire avant toute implémentation)
+
+Le projet Emergent situé dans **`~/project/placeToPadel`** est une **référence fonctionnelle uniquement**.
+
+### Ce que tu dois faire avec ce projet
+1. **Analyser** le code pour comprendre les features, les flows utilisateurs et la logique métier
+2. **Extraire** les concepts métier utiles (règles de compétition, workflows, structures de données)
+3. **Comprendre** le besoin avant d'écrire la moindre ligne de code
+
+### Ce que tu ne dois jamais faire
+- ❌ Copier du code Emergent tel quel dans le projet Laravel
+- ❌ Traduire mécaniquement du Python/FastAPI vers PHP/Laravel sans compréhension
+- ❌ Reproduire les mauvais patterns (server.py monolithique de 3856 lignes, MongoDB non-relationnel)
+- ❌ Garder une dépendance à l'architecture Emergent (Kubernetes, Google OAuth Emergent, stockage local)
+
+### Processus obligatoire avant chaque implémentation
+```
+1. Lire le code Emergent correspondant à la feature
+       ↓
+2. Identifier le besoin métier réel (pas le code, le besoin)
+       ↓
+3. Proposer une architecture Laravel propre pour ce besoin
+       ↓
+4. Justifier les choix (pourquoi, avantages, limites)
+       ↓
+5. Implémenter proprement (Controller → Service → Model → Resource)
+```
+
+> Le prototype Emergent valide une **idée produit**.
+> Le backend Laravel doit la **sécuriser, structurer et rendre scalable**.
+
+---
+
+## 🚫 RÈGLES FONDAMENTALES
 
 **NE JAMAIS :**
 - Copier le code Emergent tel quel
 - Reproduire une logique sans comprendre le besoin métier
 - Dépendre de l'architecture FastAPI/MongoDB existante
+- Proposer une solution sans expliquer : pourquoi / avantages / limites
 
 **TOUJOURS :**
 1. Comprendre le besoin métier d'abord
 2. Extraire la logique utile du prototype
 3. Reconstruire proprement dans la nouvelle architecture
+4. Adapter au contexte Laravel + API-first + mobile-first
 
 ---
 
@@ -117,6 +196,45 @@ app/
 ---
 
 ## 🗄️ SCHÉMA DE BASE DE DONNÉES (MySQL)
+
+### ✅ Migrations créées et validées (Phase 0-1)
+
+**clubs** — uuid(v7), slug, name, address, city, postal_code(nullable), region, country(def:FR), latitude(10,8), longitude(11,8), phone, email, website, courts_count, is_active(def:true), softDeletes
+- Index : (latitude, longitude), slug, uuid
+- Pas de FK owner pour l'instant (Phase 2)
+
+**users** — uuid(v7), email, password(nullable si Google), auth_type ENUM(local,google), role ENUM(player,organizer,referee,admin), first_name, last_name, name(dénormalisé FFT), picture_url(S3), city, club_id(FK nullOnDelete), remember_token, softDeletes
+- Index : email, role, club_id, uuid
+
+**user_profiles** — user_id(FK 1-1 cascadeOnDelete), bio, position ENUM(left,right,both), padel_level(TINYINT 1-5), license_number, padel_points, ranking, tenup_synced_at, tenup_name, region, latitude(10,8), longitude(11,8), max_radius_km(def:30), max_radius_training_km(def:15)
+- Index : license_number, ranking, padel_points, (latitude,longitude)
+- Note : padel_level = niveau réel joueur / preferred_levels = catégories tournois FFT (P25..P2000)
+
+**user_preferred_levels** — user_id(FK cascade), level VARCHAR(10) [P25,P50,P100,P250,P500,P1000,P2000]
+- UNIQUE(user_id, level) + index sur level
+- VARCHAR vs ENUM → flexible si FFT introduit nouveaux niveaux, validation côté Request
+
+**user_availabilities** — user_id(FK cascade), day_of_week TINYINT (ISO 8601 : 1=lundi, 7=dimanche)
+- UNIQUE(user_id, day_of_week)
+
+### Tables Phase 2 (à créer)
+```
+tournaments, tournament_teams, matches, team_states, pools
+```
+
+### Tables Phase 3 (à créer)
+```
+partners, swipes, proposals, conversations, messages,
+posts, post_likes, post_comments, notifications, push_subscriptions
+```
+
+### Décisions techniques actées
+- **UUID v7** sur toutes les tables (triable, exposé API, pas de fuite d'IDs séquentiels)
+- **Soft deletes** sur : users, clubs, tournaments, posts
+- **Anti brute-force** : RateLimiter Laravel natif (pas de table login_attempts)
+- **Sessions Google** : Sanctum gère nativement, pas de table user_sessions
+- **Rôles** : ENUM MVP (Spatie permissions → Phase 2 si besoin)
+- **Migrations** : toujours une migration par table, nommage `create_{table}_table`
 
 ### Tables principales à créer
 ```sql
@@ -373,12 +491,88 @@ PlayerRegistered
 
 ---
 
-## 🧪 TESTS
+## 🌿 Git Workflow — Règles obligatoires
 
-- **Feature tests** : tous les endpoints API
-- **Unit tests** : MatchEngineService (logique compétition critique)
-- **Factories** : pour chaque model
+### Branche principale
+- `main` est la branche de production — on n'y pousse **jamais** directement
+
+### Nomenclature des branches
+| Type | Préfixe | Exemple |
+|------|---------|---------|
+| Nouvelle fonctionnalité | `feature/` | `feature/auth-module` |
+| Correction de bug | `fix/` | `fix/tournament-registration` |
+| Refactoring | `refactor/` | `refactor/match-engine-service` |
+| Configuration / maintenance | `chore/` | `chore/update-env-example` |
+| Documentation | `docs/` | `docs/update-claude-md` |
+
+### Cycle de vie d'une branche
+```bash
+# 1. Toujours partir de main à jour
+git checkout main && git pull
+
+# 2. Créer la branche
+git checkout -b feature/nom-du-module
+
+# 3. Développer + committer au fil de l'eau
+git commit -m "[FEAT]: description claire"
+
+# 4. Tests Insomnia validés sur la branche
+# 5. Tests PHPUnit passants
+# 6. Soumettre pour validation (Fanomezantsoa valide)
+# 7. Merge vers main uniquement après accord
+# 8. Retests sur main après merge
+```
+
+### Gestion des conflits
+- Claude **ne résout jamais un conflit seul**
+- En cas de conflit : **signaler + expliquer + proposer la résolution**
+- **Fanomezantsoa valide** la résolution avant que Claude applique quoi que ce soit
+
+---
+
+## 🧪 Testing — Règles obligatoires
+
+### Principe
+Deux niveaux de tests **obligatoires** avant tout merge vers `main` :
+1. **Tests manuels Insomnia** — valider la logique métier endpoint par endpoint
+2. **Tests automatisés PHPUnit** — valider que rien n'est cassé dans le code
+
+Un tableau vide `[]` sur un GET ne suffit pas — il faut valider la logique métier.
+Un test PHPUnit vert ne suffit pas — il faut aussi valider le comportement réel sur Insomnia.
+
+### Checklist Insomnia — minimum par module
+- [ ] CREATE → l'enregistrement est bien créé avec les bons champs
+- [ ] READ (liste + détail) → les données retournées sont correctes
+- [ ] UPDATE → la modification est bien appliquée
+- [ ] DELETE → la suppression fonctionne
+- [ ] Actions métier → (ex: register, launch, score, validate...) testées une par une
+- [ ] Cas d'erreur → mauvais statut, ID inexistant, champs manquants, token expiré
+
+### Setup Insomnia — Place2Padel
+```
+Base URL     : http://localhost:8000
+Header       : Accept: application/json
+Header auth  : Authorization: Bearer <token>
+Obtenir token: POST http://localhost:8000/api/v1/auth/login
+```
+
+### Tests PHPUnit automatisés
+- **Feature tests** : chaque endpoint API (happy path + cas d'erreur)
+- **Unit tests** : `MatchEngineService` (logique compétition — critique)
+- **Factories** : créer une Factory par Model
 - Commande : `php artisan test`
+- Les tests doivent passer **avant** de soumettre le merge
+
+### Ordre obligatoire avant merge
+```
+1. php artisan test → tous verts
+       ↓
+2. Tests Insomnia → checklist complète validée
+       ↓
+3. Fanomezantsoa valide
+       ↓
+4. Merge vers main
+```
 
 ---
 
@@ -438,14 +632,39 @@ URL Prod actuelle : https://www.placetopadel.com
 
 ## 🗓️ PROGRESSION
 
-- [ ] Phase 0 : Setup (Laravel + MySQL + Redis + S3 + CI/CD)
-- [ ] Phase 1 : Auth + User + Club + Tournament (CRUD)
-- [ ] Phase 2 : Match Engine + Score live + Notifications
-- [ ] Phase 3 : Matchmaking + Payment + Social
-- [ ] Phase 4 : App mobile (React Native / Flutter)
-- [ ] Phase 5 : Next.js web + SEO
+### Phase 0 — Setup
+- [x] Laravel 12 installé dans `backend/`
+- [x] Structure modulaire `app/Modules/` créée (10 modules)
+- [x] `.env.example` configuré
+- [x] Migrations créées et validées : clubs, users, user_profiles, user_preferred_levels, user_availabilities
+- [ ] `php artisan migrate` exécuté
+- [ ] Seeders : ClubsSeeder (86 clubs) + FFTRankingsSeeder (141k)
+- [ ] Laravel Sanctum (`php artisan install:api`)
+- [ ] Laravel Horizon configuré
+
+### Phase 1 — Core
+- [ ] Models Eloquent (Club, User, UserProfile)
+- [ ] Module Auth (Register, Login, Refresh, Google OAuth, Logout)
+- [ ] Module User / Profile
+- [ ] Module Club (search, détail)
+- [ ] Module Tournament (CRUD + inscription)
+
+### Phase 2 — Moteur compétition
+- [ ] Match Engine (poules, brackets, formats auto)
+- [ ] Match Live (score, double validation)
+- [ ] Notifications (queues Redis)
+
+### Phase 3 — Social & Paiement
+- [ ] Matchmaking partenaires + feature "Je suis seul pour ce tournoi"
+- [ ] Payment Stripe (1€/mois)
+- [ ] Feed social simplifié
+
+### Phase 4+
+- [ ] App mobile (React Native / Flutter)
+- [ ] Next.js web + SEO
+- [ ] i18n Espagne
 
 ---
 
 *Dernière mise à jour : 13 avril 2026*
-*Architecte : développeur principal + Claude Code*
+*Vision & validation : Fanomezantsoa | Implémentation : Claude Code*
