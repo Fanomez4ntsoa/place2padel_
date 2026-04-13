@@ -6,11 +6,19 @@ use App\Models\Club;
 use App\Models\User;
 use App\Modules\Auth\Events\UserRegistered;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthService
 {
+    private const ACCESS_TTL_MINUTES = 60;
+    private const REFRESH_TTL_DAYS = 7;
+    private const LOGIN_MAX_ATTEMPTS = 5;
+    private const LOGIN_LOCK_SECONDS = 900; // 15 min
+
     /**
-     * @param  array<string,mixed>  $data  Validated payload from StoreRegisterRequest.
+     * @param  array<string,mixed>  $data
      * @return array{user: User, token: string}
      */
     public function register(array $data): array
@@ -56,5 +64,115 @@ class AuthService
             'user' => $user,
             'token' => $token,
         ];
+    }
+
+    /**
+     * @param  array{email:string,password:string}  $data
+     * @return array{user: User, access_token: string, refresh_token: string}
+     */
+    public function login(array $data, string $ip): array
+    {
+        $email = $data['email'];
+        $key = $this->loginRateLimitKey($ip, $email);
+
+        if (RateLimiter::tooManyAttempts($key, self::LOGIN_MAX_ATTEMPTS)) {
+            $minutes = (int) ceil(RateLimiter::availableIn($key) / 60);
+            abort(429, "Trop de tentatives. Réessaie dans {$minutes} minutes.");
+        }
+
+        $user = User::where('email', $email)->first();
+
+        if (! $user || ! $user->password || ! Hash::check($data['password'], $user->password)) {
+            RateLimiter::hit($key, self::LOGIN_LOCK_SECONDS);
+            abort(401, 'Email ou mot de passe incorrect.');
+        }
+
+        RateLimiter::clear($key);
+
+        $access = $user->createToken(
+            'access',
+            ['*'],
+            now()->addMinutes(self::ACCESS_TTL_MINUTES),
+        )->plainTextToken;
+
+        $refresh = $user->createToken(
+            'refresh',
+            ['refresh'],
+            now()->addDays(self::REFRESH_TTL_DAYS),
+        )->plainTextToken;
+
+        $user->load(['profile', 'club', 'preferredLevels', 'availabilities']);
+
+        return [
+            'user' => $user,
+            'access_token' => $access,
+            'refresh_token' => $refresh,
+        ];
+    }
+
+    /**
+     * Rotation : révoque le refresh token présenté et émet une nouvelle paire.
+     *
+     * @return array{access_token: string, refresh_token: string}
+     */
+    public function refresh(string $plainTextRefreshToken): array
+    {
+        $token = PersonalAccessToken::findToken($plainTextRefreshToken);
+
+        // Strict : l'ability 'refresh' doit être LITTÉRALEMENT présente.
+        // Sanctum::can('refresh') retournerait true pour un access token avec
+        // abilities ['*'] (wildcard) — on ne veut PAS ce comportement ici.
+        if (! $token
+            || ! in_array('refresh', (array) $token->abilities, true)
+            || ($token->expires_at !== null && $token->expires_at->isPast())
+        ) {
+            abort(401, 'Refresh token invalide ou expiré.');
+        }
+
+        $user = $token->tokenable;
+
+        if (! $user instanceof User) {
+            abort(401, 'Utilisateur introuvable.');
+        }
+
+        $token->delete();
+
+        $access = $user->createToken(
+            'access',
+            ['*'],
+            now()->addMinutes(self::ACCESS_TTL_MINUTES),
+        )->plainTextToken;
+
+        $refresh = $user->createToken(
+            'refresh',
+            ['refresh'],
+            now()->addDays(self::REFRESH_TTL_DAYS),
+        )->plainTextToken;
+
+        return [
+            'access_token' => $access,
+            'refresh_token' => $refresh,
+        ];
+    }
+
+    /**
+     * Révoque le token courant (déconnexion de la session en cours).
+     */
+    public function logout(PersonalAccessToken $currentToken): void
+    {
+        $currentToken->delete();
+    }
+
+    /**
+     * Révoque TOUS les tokens du user (déconnexion de tous les devices).
+     */
+    public function logoutAll(User $user): int
+    {
+        return $user->tokens()->delete();
+    }
+
+    private function loginRateLimitKey(string $ip, string $email): string
+    {
+        return 'auth:login:'.$ip.':'.$email;
     }
 }
