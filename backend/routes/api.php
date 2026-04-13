@@ -8,6 +8,11 @@ use App\Modules\Auth\Controllers\LogoutController;
 use App\Modules\Auth\Controllers\MeController;
 use App\Modules\Auth\Controllers\RefreshController;
 use App\Modules\Auth\Controllers\RegisterController;
+use App\Modules\Club\Controllers\ListSubscriptionsController;
+use App\Modules\Club\Controllers\SearchClubsController;
+use App\Modules\Club\Controllers\ShowClubController;
+use App\Modules\Club\Controllers\SubscribeClubController;
+use App\Modules\Club\Controllers\UnsubscribeClubController;
 use App\Modules\User\Controllers\SearchTenupController;
 use App\Modules\User\Controllers\SearchUsersController;
 use App\Modules\User\Controllers\ShowProfileController;
@@ -53,6 +58,18 @@ Route::prefix('v1')->group(function () {
         Route::post('tenup/sync-profile', SyncTenupProfileController::class)
             ->middleware('throttle:5,1')
             ->name('tenup.sync-profile');
+
+        // IMPORTANT : `clubs/subscriptions` (literal) déclaré AVANT `clubs/{club}/...`
+        // pour être matché en priorité (Laravel teste dans l'ordre de déclaration).
+        Route::get('clubs/subscriptions', ListSubscriptionsController::class)
+            ->middleware('throttle:60,1')
+            ->name('clubs.subscriptions');
+        Route::post('clubs/{club}/subscribe', SubscribeClubController::class)
+            ->middleware('throttle:30,1')
+            ->name('clubs.subscribe');
+        Route::delete('clubs/{club}/subscribe', UnsubscribeClubController::class)
+            ->middleware('throttle:30,1')
+            ->name('clubs.unsubscribe');
     });
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
@@ -64,4 +81,13 @@ Route::prefix('v1')->group(function () {
     Route::get('tenup/search', SearchTenupController::class)
         ->middleware('throttle:30,1')
         ->name('tenup.search');
+
+    // Public — recherche clubs (autocomplete, browse).
+    Route::get('clubs/search', SearchClubsController::class)
+        ->middleware('throttle:60,1')
+        ->name('clubs.search');
+
+    Route::get('clubs/{club}', ShowClubController::class)
+        ->middleware('throttle:60,1')
+        ->name('clubs.show');
 });

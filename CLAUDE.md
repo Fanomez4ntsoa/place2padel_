@@ -664,7 +664,7 @@ URL Prod actuelle : https://www.placetopadel.com
 - [x] Module Auth complet : Register, Login, Refresh, Google OAuth, Logout, Logout-all, Me
 - [x] 32 tests PHPUnit verts (149 assertions)
 - [ ] ⚠️ Test Insomnia Google OAuth → en attente credentials Google client
-- [ ] Module User / Profile
+- [x] Module User / Profile
 - [ ] Module Club (search, détail)
 - [ ] Module Tournament (CRUD + inscription)
 
