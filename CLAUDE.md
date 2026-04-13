@@ -528,15 +528,23 @@ git checkout main && git pull
 # 2. Créer la branche
 git checkout -b feature/nom-du-module
 
-# 3. Développer + committer au fil de l'eau
+# 3. ⚠️ VÉRIFIER qu'on est sur la bonne branche avant tout
+git branch --show-current  # doit afficher feature/nom-du-module
+# Si pas sur la bonne branche → STOP, ne pas coder
+
+# 4. Développer + committer au fil de l'eau
 git commit -m "[FEAT]: description claire"
 
-# 4. Tests Insomnia validés sur la branche
-# 5. Tests PHPUnit passants
-# 6. Soumettre pour validation (Fanomezantsoa valide)
-# 7. Merge vers main uniquement après accord
-# 8. Retests sur main après merge
+# 5. Tests Insomnia validés sur la branche
+# 6. Tests PHPUnit passants
+# 7. Soumettre pour validation (Fanomezantsoa valide)
+# 8. Merge vers main uniquement après accord
+# 9. Retests sur main après merge
 ```
+
+> ⚠️ **Règle absolue** : Claude Code doit toujours exécuter `git branch --show-current` 
+> et confirmer le nom de la branche avant d'écrire la moindre ligne de code.
+> Si la branche n'existe pas ou si on est sur `main` → STOP et signaler immédiatement.
 
 ### Gestion des conflits
 - Claude **ne résout jamais un conflit seul**
@@ -660,13 +668,14 @@ URL Prod actuelle : https://www.placetopadel.com
 - [x] Laravel Horizon configuré (3 supervisors Redis : high / default / low)
 
 ### Phase 1 — Core (en cours)
-- [x] Models Eloquent : User, UserProfile, Club, UserPreferredLevel, UserAvailability
+- [x] Models Eloquent : User, UserProfile, Club, UserPreferredLevel, UserAvailability, ClubSubscription
 - [x] Module Auth complet : Register, Login, Refresh, Google OAuth, Logout, Logout-all, Me
-- [x] 32 tests PHPUnit verts (149 assertions)
-- [ ] ⚠️ Test Insomnia Google OAuth → en attente credentials Google client
-- [x] Module User / Profile
-- [ ] Module Club (search, détail)
-- [ ] Module Tournament (CRUD + inscription)
+- [x] Module User / Profile : show (3 niveaux), update, search, photo S3, FFT sync/search
+- [x] Module Club : search, détail, subscribe/unsubscribe, liste abonnements
+- [x] 97 tests PHPUnit verts (392 assertions)
+- [ ] ⚠️ Test Insomnia Google OAuth → en attente credentials Google
+- [ ] ⚠️ Test Insomnia Photo upload → en attente credentials IONOS S3
+- [ ] Module Tournament (CRUD + inscription) ← dernier module Phase 1
 
 ### Phase 2 — Moteur compétition
 - [ ] Match Engine (poules, brackets, formats auto)

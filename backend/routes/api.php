@@ -13,6 +13,16 @@ use App\Modules\Club\Controllers\SearchClubsController;
 use App\Modules\Club\Controllers\ShowClubController;
 use App\Modules\Club\Controllers\SubscribeClubController;
 use App\Modules\Club\Controllers\UnsubscribeClubController;
+use App\Modules\Tournament\Controllers\CreateTournamentController;
+use App\Modules\Tournament\Controllers\DeleteTournamentController;
+use App\Modules\Tournament\Controllers\ForMeTournamentsController;
+use App\Modules\Tournament\Controllers\LaunchTournamentController;
+use App\Modules\Tournament\Controllers\ListTournamentsController;
+use App\Modules\Tournament\Controllers\RegisterTeamController;
+use App\Modules\Tournament\Controllers\ShowTournamentController;
+use App\Modules\Tournament\Controllers\TournamentQrCodeController;
+use App\Modules\Tournament\Controllers\UnregisterTeamController;
+use App\Modules\Tournament\Controllers\UpdateTournamentController;
 use App\Modules\User\Controllers\SearchTenupController;
 use App\Modules\User\Controllers\SearchUsersController;
 use App\Modules\User\Controllers\ShowProfileController;
@@ -70,6 +80,32 @@ Route::prefix('v1')->group(function () {
         Route::delete('clubs/{club}/subscribe', UnsubscribeClubController::class)
             ->middleware('throttle:30,1')
             ->name('clubs.unsubscribe');
+
+        Route::post('tournaments', CreateTournamentController::class)
+            ->middleware('throttle:20,1')
+            ->name('tournaments.store');
+        Route::patch('tournaments/{tournament}', UpdateTournamentController::class)
+            ->middleware('throttle:30,1')
+            ->name('tournaments.update');
+        Route::delete('tournaments/{tournament}', DeleteTournamentController::class)
+            ->middleware('throttle:10,1')
+            ->name('tournaments.destroy');
+
+        // IMPORTANT : `tournaments/for-me` (literal) AVANT `tournaments/{tournament}` wildcard (public).
+        Route::get('tournaments/for-me', ForMeTournamentsController::class)
+            ->middleware('throttle:60,1')
+            ->name('tournaments.for-me');
+
+        Route::post('tournaments/{tournament}/register', RegisterTeamController::class)
+            ->middleware('throttle:20,1')
+            ->name('tournaments.register');
+        Route::delete('tournaments/{tournament}/register', UnregisterTeamController::class)
+            ->middleware('throttle:20,1')
+            ->name('tournaments.unregister');
+
+        Route::post('tournaments/{tournament}/launch', LaunchTournamentController::class)
+            ->middleware('throttle:5,1')
+            ->name('tournaments.launch');
     });
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
@@ -90,4 +126,16 @@ Route::prefix('v1')->group(function () {
     Route::get('clubs/{club}', ShowClubController::class)
         ->middleware('throttle:60,1')
         ->name('clubs.show');
+
+    Route::get('tournaments', ListTournamentsController::class)
+        ->middleware('throttle:60,1')
+        ->name('tournaments.index');
+
+    Route::get('tournaments/{tournament}', ShowTournamentController::class)
+        ->middleware('throttle:60,1')
+        ->name('tournaments.show');
+
+    Route::get('tournaments/{tournament}/qrcode', TournamentQrCodeController::class)
+        ->middleware('throttle:60,1')
+        ->name('tournaments.qrcode');
 });
