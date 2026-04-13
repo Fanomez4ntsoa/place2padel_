@@ -2,10 +2,15 @@
 
 namespace App\Providers;
 
+use App\Models\Tournament;
 use App\Modules\Auth\Events\UserRegistered;
 use App\Modules\Auth\Listeners\DispatchFFTSync;
 use App\Modules\Auth\Listeners\SendWelcomeEmail;
+use App\Modules\Tournament\Events\TournamentLaunched;
+use App\Modules\Tournament\Listeners\GenerateMatchesListener;
+use App\Modules\Tournament\Policies\TournamentPolicy;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,5 +24,9 @@ class AppServiceProvider extends ServiceProvider
     {
         Event::listen(UserRegistered::class, DispatchFFTSync::class);
         Event::listen(UserRegistered::class, SendWelcomeEmail::class);
+
+        Event::listen(TournamentLaunched::class, GenerateMatchesListener::class);
+
+        Gate::policy(Tournament::class, TournamentPolicy::class);
     }
 }
