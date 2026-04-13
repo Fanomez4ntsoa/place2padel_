@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\Auth\Controllers\GoogleCallbackController;
+use App\Modules\Auth\Controllers\GoogleRedirectController;
 use App\Modules\Auth\Controllers\LoginController;
 use App\Modules\Auth\Controllers\LogoutAllController;
 use App\Modules\Auth\Controllers\LogoutController;
@@ -20,6 +22,14 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/refresh', RefreshController::class)
         ->middleware('throttle:30,1')
         ->name('auth.refresh');
+
+    Route::get('auth/google/redirect', GoogleRedirectController::class)
+        ->middleware('throttle:20,1')
+        ->name('auth.google.redirect');
+
+    Route::get('auth/google/callback', GoogleCallbackController::class)
+        ->middleware('throttle:20,1')
+        ->name('auth.google.callback');
 
     Route::middleware(['auth:sanctum', 'access-token'])->group(function () {
         Route::get('auth/me', MeController::class)->name('auth.me');

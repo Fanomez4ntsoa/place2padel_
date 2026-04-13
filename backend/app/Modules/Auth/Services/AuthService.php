@@ -171,6 +171,28 @@ class AuthService
         return $user->tokens()->delete();
     }
 
+    /**
+     * Émet une paire access + refresh Sanctum. Partagé entre login classique
+     * et Google OAuth pour uniformiser les TTLs et abilities.
+     *
+     * @return array{access_token: string, refresh_token: string}
+     */
+    public function issueTokenPair(User $user): array
+    {
+        return [
+            'access_token' => $user->createToken(
+                'access',
+                ['*'],
+                now()->addMinutes(self::ACCESS_TTL_MINUTES),
+            )->plainTextToken,
+            'refresh_token' => $user->createToken(
+                'refresh',
+                ['refresh'],
+                now()->addDays(self::REFRESH_TTL_DAYS),
+            )->plainTextToken,
+        ];
+    }
+
     private function loginRateLimitKey(string $ip, string $email): string
     {
         return 'auth:login:'.$ip.':'.$email;
