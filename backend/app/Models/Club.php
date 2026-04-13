@@ -2,32 +2,35 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Database\Factories\ClubFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
-#[Fillable([
-    'uuid',
-    'name',
-    'slug',
-    'address',
-    'city',
-    'postal_code',
-    'region',
-    'country',
-    'latitude',
-    'longitude',
-    'phone',
-    'email',
-    'website',
-    'courts_count',
-    'is_active',
-])]
 class Club extends Model
 {
-    use SoftDeletes;
+    /** @use HasFactory<ClubFactory> */
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'uuid',
+        'name',
+        'slug',
+        'address',
+        'city',
+        'postal_code',
+        'region',
+        'country',
+        'latitude',
+        'longitude',
+        'phone',
+        'email',
+        'website',
+        'courts_count',
+        'is_active',
+    ];
 
     protected static function booted(): void
     {
