@@ -88,4 +88,19 @@ class Tournament extends Model
     {
         return $this->registeredTeams()->count() >= $this->max_teams;
     }
+
+    public function matches(): HasMany
+    {
+        return $this->hasMany(TournamentMatch::class);
+    }
+
+    public function pools(): HasMany
+    {
+        return $this->hasMany(Pool::class);
+    }
+
+    public function teamStates(): HasMany
+    {
+        return $this->hasMany(TeamState::class);
+    }
 }

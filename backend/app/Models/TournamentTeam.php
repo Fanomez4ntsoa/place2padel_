@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TournamentTeam extends Model
 {
@@ -54,5 +55,10 @@ class TournamentTeam extends Model
     public function isWaitlisted(): bool
     {
         return $this->status === 'waitlisted';
+    }
+
+    public function state(): HasOne
+    {
+        return $this->hasOne(TeamState::class, 'team_id');
     }
 }
