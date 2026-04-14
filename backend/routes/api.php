@@ -17,7 +17,14 @@ use App\Modules\Tournament\Controllers\CreateTournamentController;
 use App\Modules\Tournament\Controllers\DeleteTournamentController;
 use App\Modules\Tournament\Controllers\ForMeTournamentsController;
 use App\Modules\Tournament\Controllers\LaunchTournamentController;
+use App\Modules\Tournament\Controllers\ListMatchesController;
+use App\Modules\Tournament\Controllers\ListPoolsController;
 use App\Modules\Tournament\Controllers\ListTournamentsController;
+use App\Modules\Tournament\Controllers\RankingController;
+use App\Modules\Tournament\Controllers\TeamStatesController;
+use App\Modules\Tournament\Controllers\UpdateMatchScoreController;
+use App\Modules\Tournament\Controllers\ForfeitMatchController;
+use App\Modules\Tournament\Controllers\ValidateMatchController;
 use App\Modules\Tournament\Controllers\RegisterTeamController;
 use App\Modules\Tournament\Controllers\ShowTournamentController;
 use App\Modules\Tournament\Controllers\TournamentQrCodeController;
@@ -106,6 +113,18 @@ Route::prefix('v1')->group(function () {
         Route::post('tournaments/{tournament}/launch', LaunchTournamentController::class)
             ->middleware('throttle:5,1')
             ->name('tournaments.launch');
+
+        Route::put('matches/{match}/score', UpdateMatchScoreController::class)
+            ->middleware('throttle:60,1')
+            ->name('matches.score');
+
+        Route::put('matches/{match}/validate', ValidateMatchController::class)
+            ->middleware('throttle:30,1')
+            ->name('matches.validate');
+
+        Route::post('matches/{match}/forfeit', ForfeitMatchController::class)
+            ->middleware('throttle:10,1')
+            ->name('matches.forfeit');
     });
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
@@ -138,4 +157,20 @@ Route::prefix('v1')->group(function () {
     Route::get('tournaments/{tournament}/qrcode', TournamentQrCodeController::class)
         ->middleware('throttle:60,1')
         ->name('tournaments.qrcode');
+
+    Route::get('tournaments/{tournament}/matches', ListMatchesController::class)
+        ->middleware('throttle:60,1')
+        ->name('tournaments.matches.index');
+
+    Route::get('tournaments/{tournament}/pools', ListPoolsController::class)
+        ->middleware('throttle:60,1')
+        ->name('tournaments.pools.index');
+
+    Route::get('tournaments/{tournament}/ranking', RankingController::class)
+        ->middleware('throttle:60,1')
+        ->name('tournaments.ranking');
+
+    Route::get('tournaments/{tournament}/team-states', TeamStatesController::class)
+        ->middleware('throttle:60,1')
+        ->name('tournaments.team-states');
 });
