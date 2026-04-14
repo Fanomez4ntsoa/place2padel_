@@ -20,6 +20,10 @@ class NotificationService
         'milestone_90',
         'tournament_full',
         'tournament_complete',
+        // Phase 4.1 : proposition de partenariat + réponse → email (forte valeur).
+        // 'message' et 'proposal' (ping mineurs) restent in-app only pour éviter le spam.
+        'tournament_partner',
+        'proposal_response',
     ];
 
     /**

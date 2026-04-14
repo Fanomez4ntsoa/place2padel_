@@ -118,4 +118,30 @@ class User extends Authenticatable
     {
         return $this->hasMany(PushSubscription::class);
     }
+
+    public function tournamentInterests(): HasMany
+    {
+        return $this->hasMany(TournamentInterest::class);
+    }
+
+    public function sentProposals(): HasMany
+    {
+        return $this->hasMany(Proposal::class, 'from_user_id');
+    }
+
+    public function receivedProposals(): HasMany
+    {
+        return $this->hasMany(Proposal::class, 'to_user_id');
+    }
+
+    /**
+     * Conversations où l'user est participant (a OU b). Non-relation Eloquent
+     * (union logique) — renvoie un Builder trié par dernière activité.
+     */
+    public function conversations()
+    {
+        return Conversation::forUser($this->id)
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id');
+    }
 }
