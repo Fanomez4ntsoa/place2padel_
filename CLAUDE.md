@@ -721,29 +721,54 @@ URL Prod actuelle : https://www.placetopadel.com
 | Match Engine | 7 | 43 |
 | **TOTAL** | **36** | **175** |
 
-### Phase 3 — Notifications (prochaine)
-- [ ] NotificationService
-  - In-app notifications (12+ types)
-  - Web Push VAPID
-  - Milestones 50%/90%/100% inscriptions
-  - Convocations au launch
-  - Rappels 24h/1h avant tournoi
-- [ ] Migrations : notifications, push_subscriptions
-- [ ] Endpoints :
-  - GET /notifications
-  - PUT /notifications/{id}/read
+### Phase 3 — Notifications ✅ COMPLÈTE
+- [x] NotificationService (create + dispatch email si whitelisté)
+- [x] SendEmailJob (Resend, queue default, tries=3, backoff progressif)
+- [x] FanoutNotificationJob (queue high, targets vs delivered)
+- [x] SendConvocationsJob (queue high, message générique MVP)
+- [x] SendReminderJob (delayed dispatch 24h/1h, skip si délai négatif)
+- [x] 5 listeners : TeamRegistered, TeamPromotedFromWaitlist, TournamentCreated, TournamentLaunched, TournamentCompleted
+- [x] Anti-doublon milestones via whereJsonContains
+- [x] Migrations : notifications, push_subscriptions
+- [x] Models : Notification, PushSubscription
+- [x] 6 endpoints :
+  - GET /notifications (paginé, filtre unread)
+  - PUT /notifications/{uuid}/read
   - PUT /notifications/read-all
-  - POST /push/subscribe
-  - DELETE /push/unsubscribe
+  - GET /push/vapid-key (stub Phase 4)
+  - POST /push/subscribe (stub Phase 4)
+  - DELETE /push/unsubscribe (stub Phase 4)
+- [x] 192 tests PHPUnit verts (771 assertions)
+- [x] Insomnia validé
 
-### Phase 4 — Matchmaking partenaires
+### Récap global
+| Module | Endpoints | Tests |
+|--------|-----------|-------|
+| Auth | 8 | 32 |
+| User/Profile | 6 | 45 |
+| Club | 5 | 20 |
+| Tournament | 10 | 35 |
+| Match Engine | 7 | 43 |
+| Notifications | 6 | 17 |
+| **TOTAL** | **42** | **192** |
+
+### Phase 4 — Matchmaking partenaires (prochaine)
 - [ ] Feature "Je suis seul pour ce tournoi"
-- [ ] Matching partenaires (compatibilité niveau/zone/disponibilités)
-- [ ] Swipes, proposals, conversations
+  - POST /tournaments/{uuid}/seeking-partner
+  - DELETE /tournaments/{uuid}/seeking-partner
+  - GET /tournaments/{uuid}/seeking-partners
+- [ ] Matching partenaires global
+  - GET /matching/candidates (compatibilité niveau/zone/disponibilités)
+  - POST /matching/swipe
+  - GET /matching/matches
+- [ ] Migrations : swipes, player_matches, partners, tournament_interests
+- [ ] Push VAPID (remplace stubs Phase 3)
+  - Générer clés : `php artisan webpush:vapid`
 
 ### Phase 5 — Social & Paiement
 - [ ] Payment Stripe (1€/mois)
-- [ ] Feed social simplifié
+- [ ] Feed social simplifié (posts, likes, commentaires)
+- [ ] Conversations privées
 
 ### Phase 6+
 - [ ] App mobile (React Native / Flutter)
