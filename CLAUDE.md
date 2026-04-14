@@ -752,27 +752,64 @@ URL Prod actuelle : https://www.placetopadel.com
 | Notifications | 6 | 17 |
 | **TOTAL** | **42** | **192** |
 
-### Phase 4 — Matchmaking partenaires (prochaine)
-- [ ] Feature "Je suis seul pour ce tournoi"
+### Phase 4 — Matchmaking partenaires ✅ COMPLÈTE (Phase 4.1)
+- [x] Feature "Je suis seul pour ce tournoi"
   - POST /tournaments/{uuid}/seeking-partner
   - DELETE /tournaments/{uuid}/seeking-partner
-  - GET /tournaments/{uuid}/seeking-partners
-- [ ] Matching partenaires global
-  - GET /matching/candidates (compatibilité niveau/zone/disponibilités)
-  - POST /matching/swipe
-  - GET /matching/matches
-- [ ] Migrations : swipes, player_matches, partners, tournament_interests
-- [ ] Push VAPID (remplace stubs Phase 3)
-  - Générer clés : `php artisan webpush:vapid`
+  - GET /tournaments/{uuid}/seeking-partners (public=count, auth=scores compat)
+  - GET /seeking-partner/my
+- [x] Proposals tournament_partner
+  - POST /tournaments/{uuid}/propose-to-partner
+  - GET /proposals (filtres direction + status)
+  - PUT /proposals/{uuid}/respond (accept/refuse)
+  - DELETE /proposals/{uuid} (annulation pending)
+- [x] Conversations & messages
+  - GET /conversations (other_user + unread_count)
+  - GET /conversations/{uuid}/messages (ordre chronologique)
+  - POST /conversations/{uuid}/messages
+- [x] MatchmakingService (algo compat contextuel 0-100)
+  - scorePosition (30) / scoreLevel (30) / scoreAvailabilities (25) / scoreClub (15)
+- [x] ConversationService (postMessage + MessageSent event)
+- [x] Migrations : tournament_interests, proposals, conversations, private_messages
+- [x] 219 tests PHPUnit verts (831 assertions)
+- [x] Insomnia validé
 
-### Phase 5 — Social & Paiement
+### Phase 4.2 — Matching global (reportée)
+- [ ] Swipe global Tinder (swipes, player_matches)
+- [ ] GET /matching/candidates
+- [ ] POST /matching/swipe
+- [ ] GET /matching/matches
+- [ ] Proposals match_amical + tournament
+
+### Récap global
+| Module | Endpoints | Tests |
+|--------|-----------|-------|
+| Auth | 8 | 32 |
+| User/Profile | 6 | 45 |
+| Club | 5 | 20 |
+| Tournament | 10 | 35 |
+| Match Engine | 7 | 43 |
+| Notifications | 6 | 17 |
+| Matchmaking | 11 | 27 |
+| **TOTAL** | **53** | **219** |
+
+### Phase 5 — Social & Paiement (prochaine)
 - [ ] Payment Stripe (1€/mois)
-- [ ] Feed social simplifié (posts, likes, commentaires)
-- [ ] Conversations privées
+  - POST /payments/subscribe
+  - GET /payments/status
+  - Webhook Stripe
+- [ ] Feed social simplifié
+  - GET /feed
+  - POST /posts
+  - DELETE /posts/{uuid}
+  - POST /posts/{uuid}/like
+  - GET /posts/{uuid}/comments
+  - POST /posts/{uuid}/comments
 
 ### Phase 6+
 - [ ] App mobile (React Native / Flutter)
 - [ ] Next.js web + SEO
+- [ ] Push VAPID (remplace stubs Phase 3)
 - [ ] i18n Espagne
 
 ---
