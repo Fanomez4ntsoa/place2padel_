@@ -6,6 +6,8 @@ use App\Models\Tournament;
 use App\Modules\Auth\Events\UserRegistered;
 use App\Modules\Auth\Listeners\DispatchFFTSync;
 use App\Modules\Auth\Listeners\SendWelcomeEmail;
+use App\Modules\Feed\Listeners\CreateSystemPostOnTournamentCompleted;
+use App\Modules\Feed\Listeners\CreateSystemPostOnTournamentCreated;
 use App\Modules\Matchmaking\Events\MessageSent;
 use App\Modules\Matchmaking\Events\ProposalCreated;
 use App\Modules\Matchmaking\Events\ProposalResponded;
@@ -53,6 +55,10 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(ProposalCreated::class, NotifyProposalCreated::class);
         Event::listen(ProposalResponded::class, NotifyProposalResponded::class);
         Event::listen(MessageSent::class, NotifyMessageSent::class);
+
+        // Feed Phase 5.1 — génération automatique de posts système.
+        Event::listen(TournamentCreated::class, CreateSystemPostOnTournamentCreated::class);
+        Event::listen(TournamentCompleted::class, CreateSystemPostOnTournamentCompleted::class);
 
         Gate::policy(Tournament::class, TournamentPolicy::class);
     }

@@ -144,4 +144,19 @@ class User extends Authenticatable
             ->orderByDesc('last_message_at')
             ->orderByDesc('id');
     }
+
+    public function posts(): HasMany
+    {
+        return $this->hasMany(Post::class, 'author_id');
+    }
+
+    public function postLikes(): HasMany
+    {
+        return $this->hasMany(PostLike::class);
+    }
+
+    public function postComments(): HasMany
+    {
+        return $this->hasMany(PostComment::class);
+    }
 }
