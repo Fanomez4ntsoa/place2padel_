@@ -108,4 +108,9 @@ class Tournament extends Model
     {
         return $this->hasMany(TournamentInterest::class);
     }
+
+    public function posts(): HasMany
+    {
+        return $this->hasMany(Post::class);
+    }
 }

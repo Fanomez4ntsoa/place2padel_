@@ -36,6 +36,15 @@ use App\Modules\Notification\Controllers\MarkNotificationReadController;
 use App\Modules\Notification\Controllers\SubscribePushController;
 use App\Modules\Notification\Controllers\UnsubscribePushController;
 use App\Modules\Notification\Controllers\VapidKeyController;
+use App\Modules\Feed\Controllers\CreateCommentController;
+use App\Modules\Feed\Controllers\CreatePostController;
+use App\Modules\Feed\Controllers\DeleteCommentController;
+use App\Modules\Feed\Controllers\DeletePostController;
+use App\Modules\Feed\Controllers\FeedController;
+use App\Modules\Feed\Controllers\ListCommentsController;
+use App\Modules\Feed\Controllers\ListProfilePostsController;
+use App\Modules\Feed\Controllers\ListTournamentPostsController;
+use App\Modules\Feed\Controllers\ToggleLikeController;
 use App\Modules\Matchmaking\Controllers\CancelProposalController;
 use App\Modules\Matchmaking\Controllers\CancelSeekingPartnerController;
 use App\Modules\Matchmaking\Controllers\DeclareSeekingPartnerController;
@@ -202,6 +211,26 @@ Route::prefix('v1')->group(function () {
         Route::post('conversations/{conversation}/messages', PostMessageController::class)
             ->middleware('throttle:60,1')
             ->name('matchmaking.messages.store');
+
+        // Feed Phase 5.1 — endpoints authentifiés.
+        Route::get('feed', FeedController::class)
+            ->middleware('throttle:120,1')
+            ->name('feed.index');
+        Route::post('posts', CreatePostController::class)
+            ->middleware('throttle:30,1')
+            ->name('posts.store');
+        Route::delete('posts/{post}', DeletePostController::class)
+            ->middleware('throttle:30,1')
+            ->name('posts.destroy');
+        Route::post('posts/{post}/like', ToggleLikeController::class)
+            ->middleware('throttle:120,1')
+            ->name('posts.like');
+        Route::post('posts/{post}/comments', CreateCommentController::class)
+            ->middleware('throttle:60,1')
+            ->name('posts.comments.store');
+        Route::delete('comments/{comment}', DeleteCommentController::class)
+            ->middleware('throttle:30,1')
+            ->name('posts.comments.destroy');
     });
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
@@ -239,6 +268,17 @@ Route::prefix('v1')->group(function () {
     Route::get('tournaments/{tournament}/seeking-partners', ListSeekingPartnersController::class)
         ->middleware('throttle:60,1')
         ->name('matchmaking.seeking.list');
+
+    // Feed Phase 5.1 — lecture publique (liked_by_viewer renseigné si Bearer fourni).
+    Route::get('tournaments/{tournament}/posts', ListTournamentPostsController::class)
+        ->middleware('throttle:120,1')
+        ->name('posts.tournament');
+    Route::get('profile/{user}/posts', ListProfilePostsController::class)
+        ->middleware('throttle:120,1')
+        ->name('posts.profile');
+    Route::get('posts/{post}/comments', ListCommentsController::class)
+        ->middleware('throttle:120,1')
+        ->name('posts.comments.index');
 
     Route::get('tournaments/{tournament}/matches', ListMatchesController::class)
         ->middleware('throttle:60,1')

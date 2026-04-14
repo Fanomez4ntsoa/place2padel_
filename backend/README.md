@@ -56,3 +56,8 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+Pour la tech, ta suggestion c'était React Native .. (?)
+Une des choses à pas oublier, c'était bien le rôle d'Emergent de nous avoir aider à proposer le design qu'il a fait et donc, qu'on a validé. Aussi c'était bien l'une des grandes raisons qu'on avait utiliser.. le prototype du projet qu'on a vue visuellement et qu'on a valider. Tous ça pour dire que l'étape ou on passe au frontend doit être très très stricte, sur le fait de ne rien changer ni créer par rapport au style UX de référence qu'à fait Emergent. J'espère que c'est claire. Disons qu'on a fait le plus gros des travaille la migration et l'adaptation pour le backend, j'espère que pour la partie frontend, ça ne va pas trop pausé de problème. Mais le principale c'est que le côté visuelle, il ne faut surtout pas que ça change quelque chose.. mobile-first
+
+Aussi, j'ai besoin de savoir l'étape sur la réalisation d'un application mobile comme celui-ci ?
