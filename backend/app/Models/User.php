@@ -108,4 +108,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(ClubSubscription::class);
     }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class)->latest();
+    }
+
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
 }

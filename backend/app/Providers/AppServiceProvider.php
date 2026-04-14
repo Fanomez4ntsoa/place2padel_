@@ -6,6 +6,15 @@ use App\Models\Tournament;
 use App\Modules\Auth\Events\UserRegistered;
 use App\Modules\Auth\Listeners\DispatchFFTSync;
 use App\Modules\Auth\Listeners\SendWelcomeEmail;
+use App\Modules\Notification\Listeners\DispatchLaunchNotifications;
+use App\Modules\Notification\Listeners\NotifyNewTournament;
+use App\Modules\Notification\Listeners\NotifyTeamRegistered;
+use App\Modules\Notification\Listeners\NotifyTournamentCompleted;
+use App\Modules\Notification\Listeners\NotifyWaitlistPromoted;
+use App\Modules\Tournament\Events\TeamPromotedFromWaitlist;
+use App\Modules\Tournament\Events\TeamRegistered;
+use App\Modules\Tournament\Events\TournamentCompleted;
+use App\Modules\Tournament\Events\TournamentCreated;
 use App\Modules\Tournament\Events\TournamentLaunched;
 use App\Modules\Tournament\Listeners\GenerateMatchesListener;
 use App\Modules\Tournament\Policies\TournamentPolicy;
@@ -26,6 +35,13 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(UserRegistered::class, SendWelcomeEmail::class);
 
         Event::listen(TournamentLaunched::class, GenerateMatchesListener::class);
+
+        // Notifications Phase 3 — multiple listeners par event (ordre = ordre d'appel).
+        Event::listen(TeamRegistered::class, NotifyTeamRegistered::class);
+        Event::listen(TeamPromotedFromWaitlist::class, NotifyWaitlistPromoted::class);
+        Event::listen(TournamentCreated::class, NotifyNewTournament::class);
+        Event::listen(TournamentLaunched::class, DispatchLaunchNotifications::class);
+        Event::listen(TournamentCompleted::class, NotifyTournamentCompleted::class);
 
         Gate::policy(Tournament::class, TournamentPolicy::class);
     }
