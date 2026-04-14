@@ -36,6 +36,17 @@ use App\Modules\Notification\Controllers\MarkNotificationReadController;
 use App\Modules\Notification\Controllers\SubscribePushController;
 use App\Modules\Notification\Controllers\UnsubscribePushController;
 use App\Modules\Notification\Controllers\VapidKeyController;
+use App\Modules\Matchmaking\Controllers\CancelProposalController;
+use App\Modules\Matchmaking\Controllers\CancelSeekingPartnerController;
+use App\Modules\Matchmaking\Controllers\DeclareSeekingPartnerController;
+use App\Modules\Matchmaking\Controllers\ListConversationsController;
+use App\Modules\Matchmaking\Controllers\ListMessagesController;
+use App\Modules\Matchmaking\Controllers\ListProposalsController;
+use App\Modules\Matchmaking\Controllers\ListSeekingPartnersController;
+use App\Modules\Matchmaking\Controllers\MySeekingController;
+use App\Modules\Matchmaking\Controllers\PostMessageController;
+use App\Modules\Matchmaking\Controllers\ProposeToPartnerController;
+use App\Modules\Matchmaking\Controllers\RespondProposalController;
 use App\Modules\User\Controllers\SearchTenupController;
 use App\Modules\User\Controllers\SearchUsersController;
 use App\Modules\User\Controllers\ShowProfileController;
@@ -154,6 +165,43 @@ Route::prefix('v1')->group(function () {
         Route::delete('push/unsubscribe', UnsubscribePushController::class)
             ->middleware('throttle:10,1')
             ->name('push.unsubscribe');
+
+        // Matchmaking Phase 4.1 — seeking partner (auth requise).
+        // IMPORTANT : 'seeking-partner/my' (literal) — sans conflit avec tournament scope.
+        Route::get('seeking-partner/my', MySeekingController::class)
+            ->middleware('throttle:60,1')
+            ->name('matchmaking.seeking.my');
+        Route::post('tournaments/{tournament}/seeking-partner', DeclareSeekingPartnerController::class)
+            ->middleware('throttle:20,1')
+            ->name('matchmaking.seeking.declare');
+        Route::delete('tournaments/{tournament}/seeking-partner', CancelSeekingPartnerController::class)
+            ->middleware('throttle:20,1')
+            ->name('matchmaking.seeking.cancel');
+
+        // Proposals — création / réponse / annulation.
+        Route::post('tournaments/{tournament}/propose-to-partner', ProposeToPartnerController::class)
+            ->middleware('throttle:20,1')
+            ->name('matchmaking.proposals.create');
+        Route::get('proposals', ListProposalsController::class)
+            ->middleware('throttle:60,1')
+            ->name('matchmaking.proposals.index');
+        Route::put('proposals/{proposal}/respond', RespondProposalController::class)
+            ->middleware('throttle:30,1')
+            ->name('matchmaking.proposals.respond');
+        Route::delete('proposals/{proposal}', CancelProposalController::class)
+            ->middleware('throttle:20,1')
+            ->name('matchmaking.proposals.cancel');
+
+        // Conversations & messages 1-1.
+        Route::get('conversations', ListConversationsController::class)
+            ->middleware('throttle:60,1')
+            ->name('matchmaking.conversations.index');
+        Route::get('conversations/{conversation}/messages', ListMessagesController::class)
+            ->middleware('throttle:60,1')
+            ->name('matchmaking.messages.index');
+        Route::post('conversations/{conversation}/messages', PostMessageController::class)
+            ->middleware('throttle:60,1')
+            ->name('matchmaking.messages.store');
     });
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
@@ -186,6 +234,11 @@ Route::prefix('v1')->group(function () {
     Route::get('tournaments/{tournament}/qrcode', TournamentQrCodeController::class)
         ->middleware('throttle:60,1')
         ->name('tournaments.qrcode');
+
+    // Auth optionnelle — public = count, authentifié = scores compat + détails.
+    Route::get('tournaments/{tournament}/seeking-partners', ListSeekingPartnersController::class)
+        ->middleware('throttle:60,1')
+        ->name('matchmaking.seeking.list');
 
     Route::get('tournaments/{tournament}/matches', ListMatchesController::class)
         ->middleware('throttle:60,1')

@@ -6,8 +6,14 @@ use App\Models\Tournament;
 use App\Modules\Auth\Events\UserRegistered;
 use App\Modules\Auth\Listeners\DispatchFFTSync;
 use App\Modules\Auth\Listeners\SendWelcomeEmail;
+use App\Modules\Matchmaking\Events\MessageSent;
+use App\Modules\Matchmaking\Events\ProposalCreated;
+use App\Modules\Matchmaking\Events\ProposalResponded;
 use App\Modules\Notification\Listeners\DispatchLaunchNotifications;
+use App\Modules\Notification\Listeners\NotifyMessageSent;
 use App\Modules\Notification\Listeners\NotifyNewTournament;
+use App\Modules\Notification\Listeners\NotifyProposalCreated;
+use App\Modules\Notification\Listeners\NotifyProposalResponded;
 use App\Modules\Notification\Listeners\NotifyTeamRegistered;
 use App\Modules\Notification\Listeners\NotifyTournamentCompleted;
 use App\Modules\Notification\Listeners\NotifyWaitlistPromoted;
@@ -42,6 +48,11 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(TournamentCreated::class, NotifyNewTournament::class);
         Event::listen(TournamentLaunched::class, DispatchLaunchNotifications::class);
         Event::listen(TournamentCompleted::class, NotifyTournamentCompleted::class);
+
+        // Notifications Phase 4.1 — matchmaking.
+        Event::listen(ProposalCreated::class, NotifyProposalCreated::class);
+        Event::listen(ProposalResponded::class, NotifyProposalResponded::class);
+        Event::listen(MessageSent::class, NotifyMessageSent::class);
 
         Gate::policy(Tournament::class, TournamentPolicy::class);
     }
