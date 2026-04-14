@@ -30,6 +30,12 @@ use App\Modules\Tournament\Controllers\ShowTournamentController;
 use App\Modules\Tournament\Controllers\TournamentQrCodeController;
 use App\Modules\Tournament\Controllers\UnregisterTeamController;
 use App\Modules\Tournament\Controllers\UpdateTournamentController;
+use App\Modules\Notification\Controllers\ListNotificationsController;
+use App\Modules\Notification\Controllers\MarkAllReadController;
+use App\Modules\Notification\Controllers\MarkNotificationReadController;
+use App\Modules\Notification\Controllers\SubscribePushController;
+use App\Modules\Notification\Controllers\UnsubscribePushController;
+use App\Modules\Notification\Controllers\VapidKeyController;
 use App\Modules\User\Controllers\SearchTenupController;
 use App\Modules\User\Controllers\SearchUsersController;
 use App\Modules\User\Controllers\ShowProfileController;
@@ -125,6 +131,29 @@ Route::prefix('v1')->group(function () {
         Route::post('matches/{match}/forfeit', ForfeitMatchController::class)
             ->middleware('throttle:10,1')
             ->name('matches.forfeit');
+
+        // Notifications — toutes scopées sur l'user courant.
+        // IMPORTANT : 'notifications/read-all' (literal) AVANT '{notification}/read' pour ne pas matcher "read-all" comme un uuid.
+        Route::get('notifications', ListNotificationsController::class)
+            ->middleware('throttle:120,1')
+            ->name('notifications.index');
+        Route::put('notifications/read-all', MarkAllReadController::class)
+            ->middleware('throttle:30,1')
+            ->name('notifications.read-all');
+        Route::put('notifications/{notification}/read', MarkNotificationReadController::class)
+            ->middleware('throttle:60,1')
+            ->name('notifications.read');
+
+        // Push Web — stub Phase 3 : endpoints opérationnels, envoi réel en Phase 4.
+        Route::get('push/vapid-key', VapidKeyController::class)
+            ->middleware('throttle:60,1')
+            ->name('push.vapid');
+        Route::post('push/subscribe', SubscribePushController::class)
+            ->middleware('throttle:10,1')
+            ->name('push.subscribe');
+        Route::delete('push/unsubscribe', UnsubscribePushController::class)
+            ->middleware('throttle:10,1')
+            ->name('push.unsubscribe');
     });
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
