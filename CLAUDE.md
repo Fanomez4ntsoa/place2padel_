@@ -793,23 +793,59 @@ URL Prod actuelle : https://www.placetopadel.com
 | Matchmaking | 11 | 27 |
 | **TOTAL** | **53** | **219** |
 
-### Phase 5 — Social & Paiement (prochaine)
-- [ ] Payment Stripe (1€/mois)
+### Phase 5 — Social & Paiement ✅ PARTIELLE (5.1 complète)
+
+#### Phase 5.1 — Feed social ✅ COMPLÈTE
+- [x] FeedService (4 filtres : all, my-tournaments, my-partners, my-clubs)
+- [x] Génération auto posts système (TournamentCreated, TournamentCompleted)
+- [x] Toggle like avec compteur dénormalisé transactionnel
+- [x] Commentaires avec fix bug Emergent (comments_count)
+- [x] Permissions salon tournoi (organisateur + admin + participants)
+- [x] Migrations : posts, post_likes, post_comments
+- [x] 9 endpoints :
+  - GET /feed (filtres + liked_by_viewer)
+  - POST /posts
+  - DELETE /posts/{uuid}
+  - POST /posts/{uuid}/like (toggle)
+  - POST /posts/{uuid}/comments
+  - GET /posts/{uuid}/comments
+  - DELETE /comments/{uuid}
+  - GET /tournaments/{uuid}/posts (salon)
+  - GET /profile/{uuid}/posts
+- [x] 243 tests PHPUnit verts (892 assertions)
+- [x] Insomnia validé
+
+#### Phase 5.2 — Stripe (reportée)
+- [ ] Payment Stripe (1€/mois) — après validation usage réel
   - POST /payments/subscribe
   - GET /payments/status
   - Webhook Stripe
-- [ ] Feed social simplifié
-  - GET /feed
-  - POST /posts
-  - DELETE /posts/{uuid}
-  - POST /posts/{uuid}/like
-  - GET /posts/{uuid}/comments
-  - POST /posts/{uuid}/comments
+  - Table subscriptions
 
-### Phase 6+
-- [ ] App mobile (React Native / Flutter)
-- [ ] Next.js web + SEO
+### Récap global
+| Module | Endpoints | Tests |
+|--------|-----------|-------|
+| Auth | 8 | 32 |
+| User/Profile | 6 | 45 |
+| Club | 5 | 20 |
+| Tournament | 10 | 35 |
+| Match Engine | 7 | 43 |
+| Notifications | 6 | 17 |
+| Matchmaking | 11 | 27 |
+| Feed social | 9 | 24 |
+| **TOTAL** | **62** | **243** |
+
+### Phase 6 — App mobile (prochaine)
+- [ ] React Native + Expo (si équipe JS) ou Flutter
+- [ ] Consommation API Laravel
+- [ ] Authentification Sanctum (Bearer token)
 - [ ] Push VAPID (remplace stubs Phase 3)
+  - Générer clés : `php artisan webpush:vapid`
+
+### Phase 7+
+- [ ] Next.js web + SEO
+- [ ] Phase 4.2 Matching global Tinder (swipes)
+- [ ] Phase 5.2 Stripe
 - [ ] i18n Espagne
 
 ---
