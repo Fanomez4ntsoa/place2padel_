@@ -687,29 +687,65 @@ URL Prod actuelle : https://www.placetopadel.com
 | Tournament | 10 | 35 |
 | **TOTAL** | **31** | **132** |
 
-### Phase 2 — Moteur compétition (prochaine)
-- [ ] MatchEngineService (remplace stub `GenerateMatchesListener`)
-  - Formats auto selon nb équipes (élim directe / poules / hybride)
-  - Distribution serpentin têtes de série
-  - Gestion BYEs
-  - Reclassement dynamique
-- [ ] Migrations Phase 2 : matches, pools, team_states
-- [ ] Match Live (score temps réel, double validation capitaines)
-  - Score 9 jeux, tie-break à 8-8
-  - PUT /matches/{id}/score
-  - PUT /matches/{id}/validate
-- [ ] Notifications (queues Redis + Laravel Horizon)
-  - In-app + Web Push (VAPID)
-  - Milestones 50%/90%/100%
-  - Convocations au launch
-  - Rappels 24h/1h
+### Phase 2 — Moteur compétition ✅ COMPLÈTE
+- [x] MatchEngineService complet :
+  - `recommendFormat()` — 4 formats auto selon nb équipes
+  - `generateInitial()` — orchestrateur seeding + pools/bracket
+  - `generateBracket()` — élimination directe + BYEs
+  - `generatePoules()` — round-robin complet + distribution serpentin
+  - `reclassifyAfterMatch()` — reclassement dynamique transactionnel
+  - `generateDynamicMatches()` — appariement anti-rematch
+  - `calculatePoolStandings()` — standings live depuis matchs
+- [x] GenerateMatchesJob (queue high, tries=3)
+- [x] Migrations : matches, pools, team_states
+- [x] Models : TournamentMatch, Pool, TeamState
+- [x] Endpoints lecture :
+  - GET /tournaments/{uuid}/matches (filtres status/phase/bloc)
+  - GET /tournaments/{uuid}/pools (standings live)
+  - GET /tournaments/{uuid}/ranking (dynamique ou final)
+  - GET /tournaments/{uuid}/team-states (debug/admin)
+- [x] Endpoints action :
+  - PUT /matches/{uuid}/score (captain+partner, tie-break 8-8)
+  - PUT /matches/{uuid}/validate (captain seul, double validation)
+  - POST /matches/{uuid}/forfeit (owner+admin, score 9-0)
+- [x] 175 tests PHPUnit verts (732 assertions)
+- [x] Insomnia validé
 
-### Phase 3 — Social & Paiement
-- [ ] Matchmaking partenaires + feature "Je suis seul pour ce tournoi"
+### Récap global
+| Module | Endpoints | Tests |
+|--------|-----------|-------|
+| Auth | 8 | 32 |
+| User/Profile | 6 | 45 |
+| Club | 5 | 20 |
+| Tournament | 10 | 35 |
+| Match Engine | 7 | 43 |
+| **TOTAL** | **36** | **175** |
+
+### Phase 3 — Notifications (prochaine)
+- [ ] NotificationService
+  - In-app notifications (12+ types)
+  - Web Push VAPID
+  - Milestones 50%/90%/100% inscriptions
+  - Convocations au launch
+  - Rappels 24h/1h avant tournoi
+- [ ] Migrations : notifications, push_subscriptions
+- [ ] Endpoints :
+  - GET /notifications
+  - PUT /notifications/{id}/read
+  - PUT /notifications/read-all
+  - POST /push/subscribe
+  - DELETE /push/unsubscribe
+
+### Phase 4 — Matchmaking partenaires
+- [ ] Feature "Je suis seul pour ce tournoi"
+- [ ] Matching partenaires (compatibilité niveau/zone/disponibilités)
+- [ ] Swipes, proposals, conversations
+
+### Phase 5 — Social & Paiement
 - [ ] Payment Stripe (1€/mois)
 - [ ] Feed social simplifié
 
-### Phase 4+
+### Phase 6+
 - [ ] App mobile (React Native / Flutter)
 - [ ] Next.js web + SEO
 - [ ] i18n Espagne
