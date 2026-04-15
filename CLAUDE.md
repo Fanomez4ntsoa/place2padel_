@@ -835,18 +835,89 @@ URL Prod actuelle : https://www.placetopadel.com
 | Feed social | 9 | 24 |
 | **TOTAL** | **62** | **243** |
 
-### Phase 6 — App mobile (prochaine)
-- [ ] React Native + Expo (si équipe JS) ou Flutter
-- [ ] Consommation API Laravel
-- [ ] Authentification Sanctum (Bearer token)
-- [ ] Push VAPID (remplace stubs Phase 3)
-  - Générer clés : `php artisan webpush:vapid`
+### Phase 6 — App mobile React Native + Expo (EN COURS)
+Branche active : `feature/mobile-phase-6-1`
+Stack : React Native + Expo SDK 54, Expo Router, NativeWind v4, TanStack Query, Reanimated 4
 
-### Phase 7+
-- [ ] Next.js web + SEO
-- [ ] Phase 4.2 Matching global Tinder (swipes)
-- [ ] Phase 5.2 Stripe
-- [ ] i18n Espagne
+#### Référence visuelle définitive
+Projet Emergent commit **d541157** — `~/project/placeToPadel/frontend/`
+⚠️ Nom officiel : **"PlaceToPadel"** (pas "Place2Padel")
+
+#### Phase 6.1 — Vertical slice MVP (en cours)
+- [x] Bootstrap Expo + NativeWind + TypeScript strict
+- [x] Design system : couleurs, fonts (Plus Jakarta Sans + DM Sans), tokens, composants atomiques (Button, Card, Badge, Input, Text)
+- [x] API client axios + intercepteurs Bearer + rotation tokens Sanctum
+- [x] AuthContext + TanStack Query + expo-secure-store
+- [x] Structure Expo Router + BottomTabs 5 onglets + Cockpit surélevé
+- [x] Login fonctionnel (connecté au backend Laravel)
+- [x] Register basique (version simplifiée — à refondre en 6.1.5)
+- [x] TournamentCard + useTournaments (infinite scroll) + TournamentsHeader + LevelFilterPills + Écran liste Tournois
+- [ ] Étape 7 : Détail tournoi + inscription ← EN COURS
+- [ ] Étape 8 : Cockpit
+- [ ] Étape 9 : Profil
+- [ ] Étape 10 : Logout + polish + stubs onglets restants
+
+#### Phase 6.1.5 — Resynchronisation Emergent d541157
+À faire après Phase 6.1 complète :
+- [ ] Nom "PlaceToPadel" partout (logo, textes, package)
+- [ ] Register refonte complète (accountType Joueur/Juge, position, niveau, disponibilités, bio, photo)
+- [ ] HomePage refonte hero marketing + grille 3×3 features + popups
+- [ ] AppHeader (logo PlaceToPadel, badges unread Messages+Notifs, CTA inscription)
+- [ ] Cockpit (mode vacances)
+- [ ] Feed (filtres sticky, images 4/5)
+- [ ] Profile (header simplifié sans cover)
+- [ ] Partenaires (3 modes : amical/tournoi/rencontre)
+- [ ] Nouvelles pages : MatchingPage + OrganisateursPage (marketing statique)
+- [ ] Tournaments (header délégué AppHeader)
+
+#### Phase 6.2 — Fonctionnalités avancées
+- [ ] Score live (MatchLivePage)
+- [ ] QR code scanner
+- [ ] Push notifications (Expo Push → remplace VAPID stubs backend)
+- [ ] Google OAuth mobile (expo-auth-session)
+- [ ] Chat/Conversations
+- [ ] Seeking partner mobile
+
+### Phase 7 — Web Next.js
+- [ ] Dashboard admin
+- [ ] Landing page SEO
+- [ ] Tournois indexables Google
+
+### Phase 8 — Publication
+- [ ] Build APK Android
+- [ ] Build IPA iOS
+- [ ] App Store + Google Play
+
+---
+
+## 📱 CONFIGURATION DÉVELOPPEMENT MOBILE
+
+### Lancer le projet
+```bash
+# Terminal 1 — Backend (obligatoire --host=0.0.0.0 pour émulateur)
+cd ~/project/place2padel/backend
+php artisan serve --host=0.0.0.0 --port=8000
+
+# Terminal 2 — Frontend mobile
+cd ~/project/place2padel/frontend/mobile
+npx expo start --clear
+# Appuie sur 'a' pour ouvrir sur l'émulateur Android
+```
+
+### Variables d'environnement mobile
+```
+# frontend/mobile/.env (ne pas committer)
+EXPO_PUBLIC_API_URL=http://172.29.240.228:8000/api/v1
+# Remplace l'IP par : hostname -I (depuis WSL)
+```
+
+### ADB WSL → Windows (si perdu)
+```bash
+sudo rm /usr/local/bin/adb
+echo '#!/bin/bash' | sudo tee /usr/local/bin/adb
+echo '/mnt/c/Users/voary/AppData/Local/Android/Sdk/platform-tools/adb.exe "$@"' | sudo tee -a /usr/local/bin/adb
+sudo chmod +x /usr/local/bin/adb
+```
 
 ---
 
