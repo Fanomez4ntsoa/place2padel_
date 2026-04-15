@@ -31,13 +31,20 @@ export default function CockpitScreen() {
   }
 
   if (!user) {
-    return <CockpitPreview onRegister={() => router.push('/(auth)/register')} onLogin={() => router.push('/(auth)/login')} />;
+    return (
+      <CockpitPreview
+        onRegister={(accountType) =>
+          router.push({ pathname: '/(auth)/register', params: { accountType } })
+        }
+        onLogin={() => router.push('/(auth)/login')}
+      />
+    );
   }
 
   const isReferee = user.role === 'referee' || user.role === 'admin';
 
   const handleLogout = () =>
-    Alert.alert('Déconnexion', 'Se déconnecter de Place2Padel ?', [
+    Alert.alert('Déconnexion', 'Se déconnecter de PlaceToPadel ?', [
       { text: 'Annuler', style: 'cancel' },
       {
         text: 'Se déconnecter',
@@ -68,11 +75,17 @@ export default function CockpitScreen() {
 // ──────────────────────────────────────────────────────────────────
 // Preview non authentifié
 // ──────────────────────────────────────────────────────────────────
-function CockpitPreview({ onRegister, onLogin }: { onRegister: () => void; onLogin: () => void }) {
+function CockpitPreview({
+  onRegister,
+  onLogin,
+}: {
+  onRegister: (accountType: 'player' | 'referee') => void;
+  onLogin: () => void;
+}) {
   const fade = useFadeInUp(0);
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         <LinearGradient
           colors={['#1A2A4A', '#2A4A6A']}
@@ -95,14 +108,14 @@ function CockpitPreview({ onRegister, onLogin }: { onRegister: () => void; onLog
             title="Compétiteur"
             subtitle="Joueur de padel"
             description="Trouve des tournois, inscris-toi, suis tes scores en direct, gère tes partenaires et ton classement FFT."
-            onPress={onRegister}
+            onPress={() => onRegister('player')}
           />
           <RoleCard
             icon={Trophy}
             title="Juge arbitre"
             subtitle="Organisateur"
             description="Crée tes tournois, gère les inscriptions, génère les tableaux et les convocations en un clic."
-            onPress={onRegister}
+            onPress={() => onRegister('referee')}
           />
 
           <Button label="Je suis déjà inscrit" variant="ghost" onPress={onLogin} className="mt-2" />
@@ -161,7 +174,7 @@ function CockpitPlayer({
   const fade = useFadeInUp(0);
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         <LinearGradient
           colors={['#1A2A4A', '#2A4A6A']}
@@ -240,7 +253,7 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
   const fade = useFadeInUp(0);
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         <LinearGradient
           colors={['#1A2A4A', '#2A4A6A']}
