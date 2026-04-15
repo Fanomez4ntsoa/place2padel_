@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Award, MapPin, Pencil, Trophy, X } from 'lucide-react-native';
+import { ArrowLeft, MapPin, Pencil, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -90,53 +90,54 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Identité — sans cover (aligné d541157) */}
+        {/* Identité compacte — port d541157 (pas de cover, header plat) */}
         <View className="px-6 pt-2">
           <View className="flex-row items-start gap-4">
-            <View className="h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-brand-border bg-white">
+            <View className="h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-2 border-brand-border bg-white">
               <Text variant="h1" className="text-brand-orange">{initials}</Text>
             </View>
             <View className="flex-1 pt-1">
-              <Text variant="h2" className="text-[22px]" numberOfLines={1}>
+              <Text variant="h2" className="text-[18px]" numberOfLines={1}>
                 {profile.name}
               </Text>
-              {profile.club ? (
-                <View className="mt-1 flex-row items-center gap-1">
-                  <MapPin size={14} color="#64748B" />
-                  <Text variant="caption" numberOfLines={1}>
-                    {profile.club.name} — {profile.club.city}
-                  </Text>
-                </View>
-              ) : null}
-              <View className="mt-2 flex-row flex-wrap gap-1.5">
-                {typeof profile.padel_points === 'number' ? (
-                  <Badge label={`${profile.padel_points} pts FFT`} tone="info" />
-                ) : null}
-                {profile.ranking ? <Badge label={`#${profile.ranking}`} tone="neutral" /> : null}
+              <View className="mt-1 flex-row flex-wrap items-center gap-1.5">
+                <Badge
+                  label={profile.role === 'referee' ? 'Juge arbitre' : profile.role === 'admin' ? 'Admin' : 'Joueur'}
+                  tone="neutral"
+                />
                 {profile.profile?.position ? (
-                  <Badge label={POSITION_LABELS[profile.profile.position] ?? profile.profile.position} tone="neutral" />
+                  <Badge label={POSITION_LABELS[profile.profile.position] ?? profile.profile.position} tone="info" />
                 ) : null}
               </View>
+              {profile.club ? (
+                <Text variant="caption" className="mt-1 font-heading text-brand-orange text-[11px]" numberOfLines={1}>
+                  {profile.club.name}
+                </Text>
+              ) : null}
+              {profile.city ? (
+                <View className="mt-0.5 flex-row items-center gap-1">
+                  <MapPin size={10} color="#94A3B8" />
+                  <Text variant="caption" className="text-[10px]">{profile.city}</Text>
+                </View>
+              ) : null}
             </View>
           </View>
+          {profile.profile?.bio ? (
+            <Text variant="caption" className="mt-3 leading-5">
+              {profile.profile.bio}
+            </Text>
+          ) : null}
         </View>
 
-        {/* Stats rapides */}
-        <View className="mx-5 mt-5 flex-row gap-3">
-          <View className="flex-1 items-center rounded-3xl border border-brand-border bg-white p-4">
-            <Trophy size={18} color="#E8650A" />
-            <Text variant="h3" className="mt-1 text-[18px]">
-              {profile.padel_level ?? '—'}
-            </Text>
-            <Text variant="caption">Niveau</Text>
-          </View>
-          <View className="flex-1 items-center rounded-3xl border border-brand-border bg-white p-4">
-            <Award size={18} color="#E8650A" />
-            <Text variant="h3" className="mt-1 text-[18px]">
-              {profile.padel_points ?? 0}
-            </Text>
-            <Text variant="caption">Points FFT</Text>
-          </View>
+        {/* Stats — grille 4 colonnes (port d541157) */}
+        <View className="mx-5 mt-4 flex-row gap-2">
+          <StatCell value={profile.padel_points ?? 0} label="Points" sub="FFT" />
+          <StatCell value={profile.ranking ?? '—'} label="Rang" />
+          <StatCell value={profile.padel_level ?? '—'} label="Niveau" />
+          <StatCell
+            value={POSITION_LABELS[profile.profile?.position ?? ''] ?? '—'}
+            label="Position"
+          />
         </View>
 
         {/* Bio */}
@@ -228,5 +229,15 @@ export default function ProfileScreen() {
         </Modal>
       ) : null}
     </SafeAreaView>
+  );
+}
+
+function StatCell({ value, label, sub }: { value: string | number; label: string; sub?: string }) {
+  return (
+    <View className="flex-1 items-center rounded-2xl border border-brand-border bg-white p-2.5">
+      <Text variant="h3" className="text-[18px] text-brand-navy">{value}</Text>
+      <Text variant="caption" className="text-[9px]">{label}</Text>
+      {sub ? <Text variant="caption" className="text-[9px] text-brand-muted">{sub}</Text> : null}
+    </View>
   );
 }

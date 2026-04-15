@@ -60,7 +60,7 @@ export default function TournamentDetailScreen() {
 
   if (isLoading || !tournament) {
     return (
-      <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+      <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
         <TournamentDetailSkeleton />
       </SafeAreaView>
     );
@@ -113,10 +113,10 @@ export default function TournamentDetailScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Header */}
-        <View className="flex-row items-center gap-3 px-4 pb-3 pt-3">
+        {/* Back minimal — AppHeader global prend le reste */}
+        <View className="px-4 pt-2 pb-1">
           <Pressable
             onPress={() => router.back()}
             className="h-9 w-9 items-center justify-center rounded-full"
@@ -124,7 +124,11 @@ export default function TournamentDetailScreen() {
           >
             <ArrowLeft size={20} color="#1A2A4A" />
           </Pressable>
-          <Text variant="h2" className="flex-1 text-[20px]" numberOfLines={1}>
+        </View>
+
+        {/* Titre + statut dans le contenu */}
+        <View className="flex-row items-start gap-3 px-5 pb-3">
+          <Text variant="h2" className="flex-1 text-[22px]">
             {tournament.name}
           </Text>
           <View className={`rounded-full border px-3 py-1 ${status.wrapperClass}`}>

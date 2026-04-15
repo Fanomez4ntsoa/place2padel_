@@ -6,13 +6,24 @@ import {
   Heart,
   LogOut,
   MessageCircle,
+  TreePalm,
   Plus,
   Swords,
   Trophy,
   User as UserIcon,
+  X,
 } from 'lucide-react-native';
-import { ComponentType } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { ComponentType, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -198,6 +209,7 @@ function CockpitPlayer({
         </LinearGradient>
 
         <Animated.View style={fade} className="-mt-6 gap-3 px-5">
+          <VacationCard />
           <ActionCard
             icon={Trophy}
             label="Mes tournois"
@@ -273,6 +285,7 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
         </LinearGradient>
 
         <Animated.View style={fade} className="-mt-6 gap-3 px-5">
+          <VacationCard />
           <Button
             label="Créer un tournoi"
             leftIcon={<Plus size={18} color="#FFFFFF" />}
@@ -346,5 +359,102 @@ function ActionCard({
         </View>
       </Card>
     </Pressable>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// VacationCard — mode vacances / déplacement (UI Phase 6.1.5, backend Phase 6.2)
+// ──────────────────────────────────────────────────────────────────
+function VacationCard() {
+  const [active, setActive] = useState(false);
+  const [city, setCity] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [draftCity, setDraftCity] = useState('');
+
+  const activate = () => {
+    const c = draftCity.trim();
+    if (!c) return;
+    setCity(c);
+    setActive(true);
+    setModalOpen(false);
+    setDraftCity('');
+  };
+
+  return (
+    <>
+      <View
+        className={`rounded-3xl border p-4 ${
+          active ? 'border-brand-orange/30 bg-brand-orange-light' : 'border-brand-border bg-white'
+        }`}
+      >
+        <View className="flex-row items-start justify-between gap-3">
+          <View className="flex-1">
+            <View className="flex-row items-center gap-2">
+              <TreePalm size={16} color={active ? '#E8650A' : '#1A2A4A'} />
+              <Text variant="body-medium" className="text-[14px]">
+                En déplacement / Vacances
+              </Text>
+            </View>
+            <Text variant="caption" className="mt-1">
+              {active
+                ? `📍 ${city} — tes tournois sont gelés`
+                : 'Active ce mode quand tu pars — tu ne recevras plus de notifs tournoi.'}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => (active ? setActive(false) : setModalOpen(true))}
+            className={`self-start rounded-full px-3 py-1.5 ${
+              active ? 'bg-white' : 'bg-brand-navy'
+            }`}
+          >
+            <Text
+              variant="caption"
+              className={`font-heading text-[11px] ${active ? 'text-brand-navy' : 'text-white'}`}
+            >
+              {active ? 'Désactiver' : 'Activer'}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {modalOpen ? (
+        <Modal transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            className="flex-1"
+          >
+            <Pressable onPress={() => setModalOpen(false)} className="flex-1 bg-black/40" />
+            <View className="rounded-t-3xl bg-white px-6 pb-8 pt-5">
+              <View className="mb-4 flex-row items-center justify-between">
+                <Text variant="h2" className="text-[18px]">
+                  🌴 Mode vacances
+                </Text>
+                <Pressable onPress={() => setModalOpen(false)} hitSlop={8}>
+                  <X size={22} color="#1A2A4A" />
+                </Pressable>
+              </View>
+              <Text variant="caption" className="mb-3">
+                Indique où tu pars — on te suggérera les tournois locaux à la place.
+              </Text>
+              <TextInput
+                value={draftCity}
+                onChangeText={setDraftCity}
+                placeholder="Ville de destination (ex : Agde, Bordeaux…)"
+                placeholderTextColor="#94A3B8"
+                className="rounded-2xl border border-brand-border bg-brand-bg p-4 font-body text-[15px] text-brand-navy"
+                autoFocus
+                autoCapitalize="words"
+              />
+              <Pressable
+                onPress={activate}
+                className="mt-4 h-12 items-center justify-center rounded-2xl bg-brand-orange"
+              >
+                <Text className="font-heading-black text-white">Activer le mode vacances</Text>
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      ) : null}
+    </>
   );
 }
