@@ -1,7 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, useRouter } from 'expo-router';
-import { ArrowRight, CreditCard, Lock, Mail, MapPin, Search, User } from 'lucide-react-native';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CreditCard,
+  Lock,
+  Mail,
+  MapPin,
+  Search,
+  Swords,
+  Trophy,
+  User as UserIcon,
+} from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -9,29 +20,17 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  TextInput,
   View,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { z } from 'zod';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { Button, Input, Text, useFadeInUp } from '@/design-system';
+import { Badge, Button, Card, Input, Text, useFadeInUp } from '@/design-system';
 import { api, formatApiError } from '@/lib/api';
 
-/** Backend exige password ≥ 8 + lettres + chiffres. */
-const schema = z.object({
-  first_name: z.string().min(1, 'Prénom requis').max(100),
-  last_name: z.string().min(1, 'Nom requis').max(100),
-  email: z.string().min(1, 'Email requis').email('Email invalide'),
-  password: z
-    .string()
-    .min(8, 'Mot de passe minimum 8 caractères')
-    .regex(/[A-Za-z]/, 'Au moins une lettre')
-    .regex(/[0-9]/, 'Au moins un chiffre'),
-  license_number: z.string().max(50).optional().or(z.literal('')),
-  city: z.string().max(100).optional().or(z.literal('')),
-});
-type FormValues = z.infer<typeof schema>;
+type AccountType = 'player' | 'referee';
 
 interface ClubResult {
   uuid: string;
@@ -40,21 +39,181 @@ interface ClubResult {
   postal_code: string | null;
 }
 
+const NIVEAUX: { value: number; desc: string }[] = [
+  { value: 1, desc: 'Débutant — je découvre le padel' },
+  { value: 2, desc: 'Je connais les bases' },
+  { value: 3, desc: 'Je joue régulièrement en loisir' },
+  { value: 4, desc: 'Joueur confirmé, premiers tournois' },
+  { value: 5, desc: 'Compétiteur régulier P25/P50' },
+  { value: 6, desc: 'Bon niveau P100/P250' },
+  { value: 7, desc: 'Très bon niveau P500' },
+  { value: 8, desc: 'Excellent P1000' },
+  { value: 9, desc: 'Elite P2000' },
+  { value: 10, desc: 'Professionnel / Top national' },
+];
+
+const JOURS = [
+  { value: 1, short: 'Lun' },
+  { value: 2, short: 'Mar' },
+  { value: 3, short: 'Mer' },
+  { value: 4, short: 'Jeu' },
+  { value: 5, short: 'Ven' },
+  { value: 6, short: 'Sam' },
+  { value: 7, short: 'Dim' },
+];
+
+const baseSchema = z.object({
+  first_name: z.string().min(1, 'Prénom requis').max(100),
+  last_name: z.string().min(1, 'Nom requis').max(100),
+  email: z.string().min(1, 'Email requis').email('Email invalide'),
+  password: z
+    .string()
+    .min(8, 'Min. 8 caractères')
+    .regex(/[A-Za-z]/, 'Au moins une lettre')
+    .regex(/[0-9]/, 'Au moins un chiffre'),
+  license_number: z.string().max(50).optional().or(z.literal('')),
+  city: z.string().max(100).optional().or(z.literal('')),
+  bio: z.string().max(500).optional().or(z.literal('')),
+});
+
+type FormValues = z.infer<typeof baseSchema>;
+
 export default function RegisterScreen() {
   const router = useRouter();
   const { register } = useAuth();
+
+  const params = useLocalSearchParams<{ accountType?: string }>();
+  const initialAccountType: AccountType | null =
+    params.accountType === 'player' || params.accountType === 'referee'
+      ? params.accountType
+      : null;
+  const [accountType, setAccountType] = useState<AccountType | null>(initialAccountType);
+
+  if (!accountType) {
+    return <AccountTypeSelector onPick={setAccountType} onBack={() => router.back()} />;
+  }
+
+  return (
+    <RegisterForm
+      accountType={accountType}
+      onBack={() => setAccountType(null)}
+      onSuccess={(u) => {
+        // Redirect selon accountType — referee va vers un stub /referee en Phase 6.2,
+        // pour l'instant on envoie sur cockpit qui détecte le role.
+        router.replace('/(tabs)/cockpit');
+        void u;
+      }}
+      register={register}
+    />
+  );
+}
+
+// ───────────────────────────────────────────────────────────
+// Step 1 — Sélecteur accountType
+// ───────────────────────────────────────────────────────────
+function AccountTypeSelector({
+  onPick,
+  onBack,
+}: {
+  onPick: (t: AccountType) => void;
+  onBack: () => void;
+}) {
+  const fade = useFadeInUp(0);
+  const fade2 = useFadeInUp(120);
+
+  return (
+    <View className="flex-1 bg-brand-bg">
+      <ScrollView contentContainerClassName="flex-grow">
+        <LinearGradient
+          colors={['#1A2A4A', '#2A4A6A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ paddingHorizontal: 24, paddingTop: 48, paddingBottom: 48 }}
+        >
+          <Pressable onPress={onBack} hitSlop={8}>
+            <ArrowLeft size={22} color="#FFFFFF" />
+          </Pressable>
+          <Animated.View style={fade} className="mt-4">
+            <Text variant="caption" className="text-white/60">Inscription</Text>
+            <Text variant="h1" className="mt-1 text-white">
+              Qui es-tu ?
+            </Text>
+            <Text variant="caption" className="mt-2 text-white/70">
+              Découvre ton expérience selon ton profil.
+            </Text>
+          </Animated.View>
+        </LinearGradient>
+
+        <Animated.View style={fade2} className="-mt-6 gap-4 px-5">
+          <Pressable onPress={() => onPick('player')}>
+            <Card>
+              <View className="flex-row items-center gap-4">
+                <View className="h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange-light">
+                  <Swords size={26} color="#E8650A" />
+                </View>
+                <View className="flex-1">
+                  <Text variant="h3">Compétiteur</Text>
+                  <Text variant="caption">Joueur de padel</Text>
+                </View>
+                <ArrowRight size={18} color="#1A2A4A" />
+              </View>
+              <Text variant="caption" className="mt-3">
+                Trouve des tournois, inscris-toi, suis tes scores et gère tes partenaires.
+              </Text>
+            </Card>
+          </Pressable>
+
+          <Pressable onPress={() => onPick('referee')}>
+            <Card>
+              <View className="flex-row items-center gap-4">
+                <View className="h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange-light">
+                  <Trophy size={26} color="#E8650A" />
+                </View>
+                <View className="flex-1">
+                  <Text variant="h3">Juge arbitre</Text>
+                  <Text variant="caption">Organisateur</Text>
+                </View>
+                <ArrowRight size={18} color="#1A2A4A" />
+              </View>
+              <Text variant="caption" className="mt-3">
+                Crée tes tournois, gère inscriptions, génère tableaux et convocations en un clic.
+              </Text>
+            </Card>
+          </Pressable>
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ───────────────────────────────────────────────────────────
+// Step 2 — Formulaire (player | referee)
+// ───────────────────────────────────────────────────────────
+function RegisterForm({
+  accountType,
+  onBack,
+  onSuccess,
+  register,
+}: {
+  accountType: AccountType;
+  onBack: () => void;
+  onSuccess: (user: unknown) => void;
+  register: (p: Record<string, unknown>) => Promise<unknown>;
+}) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Club autocomplete — état hors react-hook-form (clubQuery texte affiché, selectedClub = sélection validée).
+  // Champs spécifiques joueur hors RHF pour simplicité (grilles + slider).
+  const [position, setPosition] = useState<'left' | 'right' | 'both' | null>(null);
+  const [niveau, setNiveau] = useState<number>(0);
+  const [availabilities, setAvailabilities] = useState<number[]>([]);
+  const [radius, setRadius] = useState<number>(50);
+
   const [clubQuery, setClubQuery] = useState('');
   const [clubResults, setClubResults] = useState<ClubResult[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [selectedClub, setSelectedClub] = useState<ClubResult | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const fadeHero = useFadeInUp(0);
-  const fadeCard = useFadeInUp(120);
 
   const {
     control,
@@ -62,7 +221,7 @@ export default function RegisterScreen() {
     setValue,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(baseSchema),
     defaultValues: {
       first_name: '',
       last_name: '',
@@ -70,10 +229,10 @@ export default function RegisterScreen() {
       password: '',
       license_number: '',
       city: '',
+      bio: '',
     },
   });
 
-  // Debounce 250ms sur la recherche club. Réinitialise la sélection si l'user modifie le texte.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (clubQuery.length < 2) {
@@ -84,8 +243,7 @@ export default function RegisterScreen() {
     debounceRef.current = setTimeout(async () => {
       try {
         const { data } = await api.get('/clubs/search', { params: { q: clubQuery } });
-        const list = (data?.data ?? []) as ClubResult[];
-        setClubResults(list.slice(0, 8));
+        setClubResults(((data?.data ?? []) as ClubResult[]).slice(0, 6));
         setShowResults(true);
       } catch {
         setClubResults([]);
@@ -103,17 +261,37 @@ export default function RegisterScreen() {
     setValue('city', club.city, { shouldValidate: false });
   };
 
-  const onClubQueryChange = (t: string) => {
-    setClubQuery(t);
-    if (selectedClub && t !== selectedClub.name) {
-      setSelectedClub(null);
-    }
+  const toggleAvailability = (day: number) => {
+    setAvailabilities((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+    );
   };
 
   const onSubmit = async (values: FormValues) => {
+    // Validations player-only.
+    if (accountType === 'player') {
+      if (!position) {
+        setServerError('Ton côté de jeu est obligatoire.');
+        return;
+      }
+      if (!niveau) {
+        setServerError('Ton niveau est obligatoire.');
+        return;
+      }
+      if (availabilities.length === 0) {
+        setServerError('Indique au moins une disponibilité.');
+        return;
+      }
+      if (!selectedClub) {
+        setServerError('Ton club principal est obligatoire.');
+        return;
+      }
+    }
     setServerError(null);
     setSubmitting(true);
     try {
+      // Backend Phase 1 n'accepte pas encore tous les champs (position, niveau, bio,
+      // availabilities). Ils sont envoyés mais ignorés — alignement Phase 6.2.
       await register({
         first_name: values.first_name,
         last_name: values.last_name,
@@ -121,16 +299,23 @@ export default function RegisterScreen() {
         password: values.password,
         license_number: values.license_number || undefined,
         city: values.city || undefined,
+        bio: values.bio || undefined,
         club_uuid: selectedClub?.uuid ?? undefined,
-        role: 'player',
+        max_radius_km: accountType === 'player' ? radius : undefined,
+        role: accountType,
+        position: accountType === 'player' ? position : undefined,
+        padel_level: accountType === 'player' ? niveau : undefined,
+        availabilities: accountType === 'player' ? availabilities : undefined,
       });
-      router.replace('/(tabs)/cockpit');
+      onSuccess(undefined);
     } catch (err) {
       setServerError(formatApiError(err));
     } finally {
       setSubmitting(false);
     }
   };
+
+  const niveauActif = NIVEAUX.find((n) => n.value === niveau);
 
   return (
     <View className="flex-1 bg-brand-bg">
@@ -139,31 +324,31 @@ export default function RegisterScreen() {
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="flex-grow pb-10"
+          contentContainerClassName="pb-10"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Hero — gradient navy diagonal + titre */}
-          <Animated.View style={fadeHero} className="relative h-36 overflow-hidden">
-            <LinearGradient
-              colors={['#1A2A4A', '#2A4A6A']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-            />
-            <View className="absolute bottom-4 left-6">
-              <Text variant="h2" className="text-white">
-                Rejoins la communauté
+          <LinearGradient
+            colors={['#1A2A4A', '#2A4A6A']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ paddingHorizontal: 24, paddingTop: 48, paddingBottom: 32 }}
+          >
+            <Pressable onPress={onBack} hitSlop={8}>
+              <ArrowLeft size={22} color="#FFFFFF" />
+            </Pressable>
+            <View className="mt-3">
+              <Text variant="caption" className="text-white/60">
+                {accountType === 'player' ? 'Compte joueur' : 'Compte juge arbitre'}
               </Text>
-              <Text variant="caption" className="mt-1 text-white/70">
-                Crée ton compte en quelques secondes
+              <Text variant="h2" className="mt-1 text-white">
+                Crée ton profil
               </Text>
             </View>
-          </Animated.View>
+          </LinearGradient>
 
-          {/* Card form */}
-          <Animated.View style={fadeCard} className="-mt-3 px-5 py-4">
-            <View className="rounded-3xl border border-brand-border bg-white p-5">
+          <View className="-mt-3 px-5 py-4">
+            <Card>
               {serverError ? (
                 <View className="mb-3 rounded-2xl border border-red-100 bg-red-50 p-3">
                   <Text variant="caption" className="font-body-medium text-brand-danger">
@@ -172,7 +357,7 @@ export default function RegisterScreen() {
                 </View>
               ) : null}
 
-              {/* Prénom + Nom — 2 cols */}
+              {/* Noms */}
               <View className="flex-row gap-2">
                 <Controller
                   control={control}
@@ -185,7 +370,7 @@ export default function RegisterScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       fieldBg="brand"
-                      leftIcon={<User size={14} color="#94A3B8" />}
+                      leftIcon={<UserIcon size={14} color="#94A3B8" />}
                       error={errors.first_name?.message ?? null}
                       className="flex-1"
                     />
@@ -202,7 +387,7 @@ export default function RegisterScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       fieldBg="brand"
-                      leftIcon={<User size={14} color="#94A3B8" />}
+                      leftIcon={<UserIcon size={14} color="#94A3B8" />}
                       error={errors.last_name?.message ?? null}
                       className="flex-1"
                     />
@@ -219,7 +404,6 @@ export default function RegisterScreen() {
                     placeholder="ton@email.com"
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    autoComplete="email"
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -251,35 +435,139 @@ export default function RegisterScreen() {
                 )}
               />
 
-              <Controller
-                control={control}
-                name="license_number"
-                render={({ field: { value, onChange, onBlur } }) => (
-                  <Input
-                    label="LICENCE FFT (OPTIONNEL)"
-                    placeholder="Ex : 1234567"
-                    value={value ?? ''}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    fieldBg="brand"
-                    leftIcon={<CreditCard size={14} color="#E8650A" />}
-                    error={errors.license_number?.message ?? null}
-                    className="mt-3"
-                  />
-                )}
-              />
+              {/* Champs spécifiques joueur */}
+              {accountType === 'player' ? (
+                <>
+                  {/* Position */}
+                  <View className="mt-4">
+                    <Text variant="caption" className="font-body-medium uppercase tracking-wider text-brand-orange text-[10px]">
+                      Côté de jeu *
+                    </Text>
+                    <Text variant="caption" className="mb-2 text-[10px]">
+                      Utilisé pour le matching partenaire
+                    </Text>
+                    <View className="flex-row gap-2">
+                      {[
+                        { value: 'left' as const, label: 'Gauche ▶' },
+                        { value: 'both' as const, label: '↔ Les deux' },
+                        { value: 'right' as const, label: '◀ Droite' },
+                      ].map(({ value: v, label }) => {
+                        const active = position === v;
+                        return (
+                          <Pressable
+                            key={v}
+                            onPress={() => setPosition(v)}
+                            className={`flex-1 items-center rounded-xl border-2 py-3 ${
+                              active
+                                ? 'border-brand-orange bg-brand-orange-light'
+                                : 'border-brand-border bg-white'
+                            }`}
+                          >
+                            <Text
+                              variant="caption"
+                              className={`font-heading text-[12px] ${active ? 'text-brand-orange' : 'text-brand-navy'}`}
+                            >
+                              {label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
 
-              {/* Club — autocomplete (état hors RHF) */}
-              <View className="mt-3">
+                  {/* Niveau 1-10 */}
+                  <View className="mt-4">
+                    <Text variant="caption" className="font-body-medium uppercase tracking-wider text-brand-orange text-[10px]">
+                      Ton niveau *
+                    </Text>
+                    <Text variant="caption" className="mb-2 text-[10px]">
+                      Sois honnête — ça améliore la qualité des matchs
+                    </Text>
+                    <View className="flex-row flex-wrap gap-1.5">
+                      {NIVEAUX.map(({ value }) => {
+                        const active = niveau === value;
+                        return (
+                          <Pressable
+                            key={value}
+                            onPress={() => setNiveau(value)}
+                            className={`h-10 w-[18%] items-center justify-center rounded-xl border-2 ${
+                              active
+                                ? 'border-brand-orange bg-brand-orange'
+                                : 'border-brand-border bg-white'
+                            }`}
+                          >
+                            <Text
+                              variant="caption"
+                              className={`font-heading-black text-[16px] ${active ? 'text-white' : 'text-brand-navy'}`}
+                            >
+                              {value}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <View className={`mt-2 rounded-xl px-3 py-2 ${niveauActif ? 'bg-brand-orange-light' : 'bg-slate-50'}`}>
+                      <Text variant="caption" className={niveauActif ? 'text-brand-orange font-body-medium' : 'text-brand-muted'}>
+                        {niveauActif
+                          ? `Niveau ${niveauActif.value} — ${niveauActif.desc}`
+                          : 'Sélectionne un niveau pour voir la description'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Disponibilités — jours (simplifié vs slots Emergent, aligné backend) */}
+                  <View className="mt-4">
+                    <Text variant="caption" className="font-body-medium uppercase tracking-wider text-brand-orange text-[10px]">
+                      Tes disponibilités *
+                    </Text>
+                    <Text variant="caption" className="mb-2 text-[10px]">
+                      Jours où tu joues habituellement
+                    </Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      {JOURS.map((j) => {
+                        const active = availabilities.includes(j.value);
+                        return (
+                          <Pressable
+                            key={j.value}
+                            onPress={() => toggleAvailability(j.value)}
+                            className={`rounded-full border-2 px-3 py-1.5 ${
+                              active
+                                ? 'border-brand-orange bg-brand-orange'
+                                : 'border-brand-border bg-white'
+                            }`}
+                          >
+                            <Text
+                              variant="caption"
+                              className={`font-heading text-[12px] ${active ? 'text-white' : 'text-brand-navy'}`}
+                            >
+                              {j.short}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    {availabilities.length > 0 ? (
+                      <Text variant="caption" className="mt-1 font-body-medium text-brand-success">
+                        ✅ {availabilities.length} jour{availabilities.length > 1 ? 's' : ''} sélectionné{availabilities.length > 1 ? 's' : ''}
+                      </Text>
+                    ) : null}
+                  </View>
+                </>
+              ) : null}
+
+              {/* Club (player et referee) */}
+              <View className="mt-4">
                 <Input
-                  label="CLUB DE PADEL"
+                  label={accountType === 'player' ? 'CLUB PRINCIPAL *' : 'CLUB'}
                   placeholder="Cherche ton club..."
                   value={clubQuery}
-                  onChangeText={onClubQueryChange}
+                  onChangeText={(t) => {
+                    setClubQuery(t);
+                    if (selectedClub && t !== selectedClub.name) setSelectedClub(null);
+                  }}
                   fieldBg="brand"
                   leftIcon={<Search size={14} color="#94A3B8" />}
                 />
-
                 {showResults && clubResults.length > 0 ? (
                   <View className="mt-1 overflow-hidden rounded-2xl border border-brand-border bg-white">
                     {clubResults.map((c, idx) => (
@@ -299,15 +587,14 @@ export default function RegisterScreen() {
                     ))}
                   </View>
                 ) : null}
-
                 {selectedClub ? (
                   <Text variant="caption" className="mt-1 font-body-medium text-brand-success">
-                    {selectedClub.name} — {selectedClub.city}
+                    ✅ {selectedClub.name} — {selectedClub.city}
                   </Text>
                 ) : null}
               </View>
 
-              {/* Ville — auto-remplie au pick club, éditable */}
+              {/* Ville */}
               <Controller
                 control={control}
                 name="city"
@@ -320,11 +607,84 @@ export default function RegisterScreen() {
                     onBlur={onBlur}
                     fieldBg="brand"
                     leftIcon={<MapPin size={14} color="#94A3B8" />}
-                    error={errors.city?.message ?? null}
                     className="mt-3"
                   />
                 )}
               />
+
+              {/* Rayon */}
+              {accountType === 'player' ? (
+                <View className="mt-4">
+                  <Text variant="caption" className="font-body-medium uppercase tracking-wider text-brand-navy text-[10px]">
+                    Zone de déplacement tournois : {radius} km
+                  </Text>
+                  <View className="mt-2 flex-row flex-wrap gap-2">
+                    {[10, 30, 50, 100, 200].map((r) => {
+                      const active = radius === r;
+                      return (
+                        <Pressable
+                          key={r}
+                          onPress={() => setRadius(r)}
+                          className={`rounded-full border px-3 py-1 ${
+                            active ? 'border-brand-orange bg-brand-orange' : 'border-brand-border bg-white'
+                          }`}
+                        >
+                          <Text
+                            variant="caption"
+                            className={`font-heading text-[12px] ${active ? 'text-white' : 'text-brand-muted'}`}
+                          >
+                            {r} km
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Bio */}
+              <View className="mt-4">
+                <Text variant="caption" className="mb-1.5 font-body-medium uppercase tracking-wider text-brand-navy text-[10px]">
+                  À propos
+                </Text>
+                <Controller
+                  control={control}
+                  name="bio"
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      multiline
+                      value={value ?? ''}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Ex : Joueur régulier, bon esprit, je cherche un partenaire sérieux..."
+                      placeholderTextColor="#94A3B8"
+                      className="min-h-[80px] rounded-2xl border border-brand-border bg-brand-bg p-3 font-body text-[15px] text-brand-navy"
+                      style={{ textAlignVertical: 'top' }}
+                    />
+                  )}
+                />
+              </View>
+
+              {/* Licence */}
+              <Controller
+                control={control}
+                name="license_number"
+                render={({ field: { value, onChange, onBlur } }) => (
+                  <Input
+                    label="LICENCE FFT (OPTIONNEL)"
+                    placeholder="Ex : 1234567"
+                    value={value ?? ''}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    fieldBg="brand"
+                    leftIcon={<CreditCard size={14} color="#E8650A" />}
+                    className="mt-4"
+                  />
+                )}
+              />
+              <Text variant="caption" className="mt-1 text-[10px]">
+                Optionnel à l'inscription · Requis pour s'inscrire aux tournois
+              </Text>
 
               <Button
                 label={submitting ? 'Inscription...' : 'Créer mon compte'}
@@ -333,24 +693,6 @@ export default function RegisterScreen() {
                 className="mt-5"
                 leftIcon={!submitting ? <ArrowRight size={18} color="#FFFFFF" /> : undefined}
               />
-
-              <View className="my-4 flex-row items-center">
-                <View className="h-px flex-1 bg-brand-border" />
-                <Text variant="caption" className="mx-3">
-                  ou
-                </Text>
-                <View className="h-px flex-1 bg-brand-border" />
-              </View>
-
-              <Button
-                label="Continuer avec Google"
-                variant="ghost"
-                disabled
-                onPress={() => undefined}
-              />
-              <Text variant="caption" className="mt-2 text-center">
-                Google OAuth disponible en Phase 6.2.
-              </Text>
 
               <View className="mt-4 flex-row items-center justify-center">
                 <Text variant="caption">Déjà un compte ?</Text>
@@ -362,8 +704,18 @@ export default function RegisterScreen() {
                   </Pressable>
                 </Link>
               </View>
-            </View>
-          </Animated.View>
+
+              {accountType === 'player' ? (
+                <View className="mt-3 items-center">
+                  <Badge label="Compte joueur" tone="info" />
+                </View>
+              ) : (
+                <View className="mt-3 items-center">
+                  <Badge label="Compte juge arbitre" tone="neutral" />
+                </View>
+              )}
+            </Card>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
