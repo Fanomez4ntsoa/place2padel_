@@ -6,7 +6,7 @@ export default function ClubsScreen() {
   return (
     <StubScreen
       title="Annuaire clubs"
-      hint="Recherche clubs + alertes tournois arrivent en Phase 6.2."
+      hint="Disponible prochainement."
       icon={Building2}
     />
   );

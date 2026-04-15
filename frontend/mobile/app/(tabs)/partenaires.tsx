@@ -6,7 +6,7 @@ export default function PartenairesScreen() {
   return (
     <StubScreen
       title="Partenaires"
-      hint="Matching partenaires et mode rencontre arrivent en Phase 6.2."
+      hint="Disponible prochainement."
       icon={Users}
     />
   );
