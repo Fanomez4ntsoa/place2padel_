@@ -13,11 +13,19 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MatchRow } from '@/components/matches/MatchRow';
+import { PoolCard } from '@/components/matches/PoolCard';
+import { RankingList } from '@/components/matches/RankingList';
 import { Tabs } from '@/components/common/Tabs';
 import { TournamentDetailSkeleton } from '@/components/tournois/TournamentListSkeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
+import {
+  useTournamentMatches,
+  useTournamentPools,
+  useTournamentRanking,
+} from '@/features/matches/useMatches';
 import type { TournamentStatus } from '@/features/tournaments/types';
 import {
   useRegisterTeam,
@@ -27,7 +35,7 @@ import {
   useUnregisterTeam,
 } from '@/features/tournaments/useTournament';
 
-type TabKey = 'infos' | 'teams' | 'seeking';
+type TabKey = 'infos' | 'teams' | 'seeking' | 'matches' | 'pools' | 'ranking';
 
 const STATUS: Record<
   TournamentStatus,
@@ -55,6 +63,9 @@ export default function TournamentDetailScreen() {
   const registerMut = useRegisterTeam(id);
   const unregisterMut = useUnregisterTeam(id);
   const toggleSeekingMut = useToggleSeeking(id);
+  const matchesQuery = useTournamentMatches(id);
+  const poolsQuery = useTournamentPools(id);
+  const rankingQuery = useTournamentRanking(id);
 
   const [tab, setTab] = useState<TabKey>('infos');
 
@@ -202,12 +213,31 @@ export default function TournamentDetailScreen() {
           />
         </View>
 
-        {/* Tabs */}
+        {/* Tabs — Matches/Poules/Classement apparaissent uniquement quand le tournoi est lancé */}
         <Tabs<TabKey>
           tabs={[
             { key: 'infos', label: 'Infos' },
             { key: 'teams', label: 'Équipes', count: teamsCount },
-            { key: 'seeking', label: 'Seeking', count: seekingQuery.data?.meta.count ?? 0 },
+            ...(tournament.status === 'open' || tournament.status === 'full'
+              ? [
+                  {
+                    key: 'seeking' as TabKey,
+                    label: 'Seeking',
+                    count: seekingQuery.data?.meta.count ?? 0,
+                  },
+                ]
+              : []),
+            ...(tournament.status === 'in_progress' || tournament.status === 'completed'
+              ? [
+                  {
+                    key: 'matches' as TabKey,
+                    label: 'Matchs',
+                    count: matchesQuery.data?.length ?? 0,
+                  },
+                  { key: 'pools' as TabKey, label: 'Poules' },
+                  { key: 'ranking' as TabKey, label: 'Classement' },
+                ]
+              : []),
           ]}
           value={tab}
           onChange={setTab}
@@ -318,6 +348,68 @@ export default function TournamentDetailScreen() {
                     pour voir les profils et le score de compatibilité.
                   </Text>
                 </Card>
+              )}
+            </View>
+          ) : null}
+
+          {tab === 'matches' ? (
+            <View className="gap-2">
+              {matchesQuery.isLoading ? (
+                <ActivityIndicator color="#E8650A" />
+              ) : !matchesQuery.data || matchesQuery.data.length === 0 ? (
+                <Card>
+                  <Text variant="caption" className="text-center">
+                    Pas encore de match généré.
+                  </Text>
+                </Card>
+              ) : (
+                matchesQuery.data.map((m) => (
+                  <MatchRow
+                    key={m.uuid}
+                    match={m}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/matches/[id]',
+                        params: { id: m.uuid, tournament: id! },
+                      })
+                    }
+                  />
+                ))
+              )}
+            </View>
+          ) : null}
+
+          {tab === 'pools' ? (
+            <View className="gap-3">
+              {poolsQuery.isLoading ? (
+                <ActivityIndicator color="#E8650A" />
+              ) : !poolsQuery.data || poolsQuery.data.length === 0 ? (
+                <Card>
+                  <Text variant="caption" className="text-center">
+                    Aucune poule pour ce tournoi.
+                  </Text>
+                </Card>
+              ) : (
+                poolsQuery.data.map((p) => <PoolCard key={p.uuid} pool={p} />)
+              )}
+            </View>
+          ) : null}
+
+          {tab === 'ranking' ? (
+            <View>
+              {rankingQuery.isLoading ? (
+                <ActivityIndicator color="#E8650A" />
+              ) : !rankingQuery.data || rankingQuery.data.data.length === 0 ? (
+                <Card>
+                  <Text variant="caption" className="text-center">
+                    Classement indisponible pour l'instant.
+                  </Text>
+                </Card>
+              ) : (
+                <RankingList
+                  entries={rankingQuery.data.data}
+                  isFinal={rankingQuery.data.meta.final}
+                />
               )}
             </View>
           ) : null}
