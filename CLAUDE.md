@@ -843,19 +843,20 @@ Stack : React Native + Expo SDK 54, Expo Router, NativeWind v4, TanStack Query, 
 Projet Emergent commit **d541157** — `~/project/placeToPadel/frontend/`
 ⚠️ Nom officiel : **"PlaceToPadel"** (pas "Place2Padel")
 
-#### Phase 6.1 — Vertical slice MVP (en cours)
+#### Phase 6.1 — Vertical slice MVP ✅ COMPLÈTE
 - [x] Bootstrap Expo + NativeWind + TypeScript strict
-- [x] Design system : couleurs, fonts (Plus Jakarta Sans + DM Sans), tokens, composants atomiques (Button, Card, Badge, Input, Text)
+- [x] Design system : couleurs, fonts, tokens, composants atomiques
 - [x] API client axios + intercepteurs Bearer + rotation tokens Sanctum
 - [x] AuthContext + TanStack Query + expo-secure-store
 - [x] Structure Expo Router + BottomTabs 5 onglets + Cockpit surélevé
 - [x] Login fonctionnel (connecté au backend Laravel)
-- [x] Register basique (version simplifiée — à refondre en 6.1.5)
-- [x] TournamentCard + useTournaments (infinite scroll) + TournamentsHeader + LevelFilterPills + Écran liste Tournois
-- [ ] Étape 7 : Détail tournoi + inscription ← EN COURS
-- [ ] Étape 8 : Cockpit
-- [ ] Étape 9 : Profil
-- [ ] Étape 10 : Logout + polish + stubs onglets restants
+- [x] Register basique (à refondre en 6.1.5)
+- [x] Liste Tournois (infinite scroll, filtres ville+rayon+niveau)
+- [x] Détail tournoi + inscription (tabs Infos/Équipes/Seeking, CTA conditionnel)
+- [x] Cockpit dual (joueur + arbitre)
+- [x] Profil (affichage + édition bio/ville)
+- [x] Logout + toast erreur réseau + skeletons loading
+- [x] Stubs Actu / Partenaires / Clubs
 
 #### Phase 6.1.5 — Resynchronisation Emergent d541157
 À faire après Phase 6.1 complète :
