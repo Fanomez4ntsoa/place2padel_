@@ -32,7 +32,10 @@ export function useRespondProposal() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['proposals'] });
       // Accept crée une conversation côté backend (ProposalResponded listener).
+      // Invalider aussi ['counters', 'messages'] pour que le badge AppHeader
+      // bascule immédiatement sans attendre le refetchInterval de 30s.
       qc.invalidateQueries({ queryKey: ['conversations'] });
+      qc.invalidateQueries({ queryKey: ['counters', 'messages'] });
     },
   });
 }
