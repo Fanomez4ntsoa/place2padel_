@@ -50,6 +50,7 @@ use App\Modules\Matchmaking\Controllers\CancelSeekingPartnerController;
 use App\Modules\Matchmaking\Controllers\DeclareSeekingPartnerController;
 use App\Modules\Matchmaking\Controllers\ListConversationsController;
 use App\Modules\Matchmaking\Controllers\ListMessagesController;
+use App\Modules\Matchmaking\Controllers\MarkConversationReadController;
 use App\Modules\Matchmaking\Controllers\ListProposalsController;
 use App\Modules\Matchmaking\Controllers\ListSeekingPartnersController;
 use App\Modules\Matchmaking\Controllers\MySeekingController;
@@ -211,6 +212,9 @@ Route::prefix('v1')->group(function () {
         Route::post('conversations/{conversation}/messages', PostMessageController::class)
             ->middleware('throttle:60,1')
             ->name('matchmaking.messages.store');
+        Route::put('conversations/{conversation}/read', MarkConversationReadController::class)
+            ->middleware('throttle:60,1')
+            ->name('matchmaking.conversations.read');
 
         // Feed Phase 5.1 — endpoints authentifiés.
         Route::get('feed', FeedController::class)
