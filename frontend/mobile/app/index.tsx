@@ -4,8 +4,10 @@ import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
- * Route racine — redirige vers (tabs)/cockpit si authentifié, (auth)/login sinon.
- * Spinner pendant l'hydratation AuthContext (lecture secure-store + /me).
+ * Route racine — redirige vers (tabs)/cockpit si authentifié, (tabs)/home sinon.
+ * La HomePage marketing (hero + grille 9 features + bannière organisateur) est
+ * la landing non-auth. AppHeader y expose aussi le CTA "Inscription gratuite"
+ * pour convertir. Spinner pendant hydratation AuthContext (secure-store + /me).
  */
 export default function IndexRedirect() {
   const { user, loading } = useAuth();
@@ -18,5 +20,5 @@ export default function IndexRedirect() {
     );
   }
 
-  return <Redirect href={user ? '/(tabs)/cockpit' : '/(auth)/login'} />;
+  return <Redirect href={user ? '/(tabs)/cockpit' : '/(tabs)/home'} />;
 }

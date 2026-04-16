@@ -8,6 +8,9 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false }}
       tabBar={(props) => <BottomTabBar {...props} />}
     >
+      {/* HomePage marketing (landing non-auth + tap logo AppHeader). Hors navbar
+          — la navbar officielle est Actu/Tournois/Cockpit/Match/Partenaires. */}
+      <Tabs.Screen name="home" options={{ href: null }} />
       <Tabs.Screen name="actualites" options={{ title: 'Actu' }} />
       <Tabs.Screen name="tournois/index" options={{ title: 'Tournois' }} />
       {/* Détail tournoi masqué de la tab bar mais accessible via router.push. */}
