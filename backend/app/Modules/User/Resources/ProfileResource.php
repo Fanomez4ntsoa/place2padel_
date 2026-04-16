@@ -35,11 +35,12 @@ class ProfileResource extends JsonResource
             'uuid' => $this->uuid,
             'name' => $this->name,
             'picture_url' => $this->picture_url,
-            'club' => $this->whenLoaded('club', fn () => $this->club ? [
-                'uuid' => $this->club->uuid,
-                'name' => $this->club->name,
-                'city' => $this->club->city,
-            ] : null),
+            'clubs' => $this->whenLoaded('clubs', fn () => $this->clubs->map(fn ($uc) => [
+                'uuid' => $uc->club?->uuid,
+                'name' => $uc->club?->name,
+                'city' => $uc->club?->city,
+                'priority' => $uc->priority,
+            ])->values()),
             'region' => $this->profile?->region,
             'padel_level' => $this->profile?->padel_level,
             'ranking' => $this->profile?->ranking,
@@ -57,7 +58,10 @@ class ProfileResource extends JsonResource
             ),
             'availabilities' => $this->whenLoaded(
                 'availabilities',
-                fn () => $this->availabilities->pluck('day_of_week')->values(),
+                fn () => $this->availabilities->map(fn ($av) => [
+                    'day_of_week' => $av->day_of_week,
+                    'period' => $av->period,
+                ])->values(),
             ),
         ]);
 

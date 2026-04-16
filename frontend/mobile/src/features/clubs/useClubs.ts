@@ -47,6 +47,24 @@ export function flattenClubs(data: InfiniteData<ClubsPage> | undefined): Club[] 
   return data.pages.flatMap((p) => p.data);
 }
 
+/**
+ * GET /clubs/search — version légère non paginée pour autocomplete (profil, wizards).
+ * Désactivée si q < 2 caractères. staleTime 60s.
+ */
+export function useClubsQuickSearch(q: string, limit: number = 10) {
+  return useQuery<Club[]>({
+    queryKey: ['clubs', 'quick-search', q.trim(), limit],
+    enabled: q.trim().length >= 2,
+    queryFn: async () => {
+      const { data } = await api.get('/clubs/search', {
+        params: { q: q.trim(), per_page: limit },
+      });
+      return (data?.data ?? []) as Club[];
+    },
+    staleTime: 60_000,
+  });
+}
+
 export function useClub(uuid: string | undefined) {
   return useQuery<Club>({
     queryKey: ['club', uuid],

@@ -23,10 +23,11 @@ class ProfileService
         return DB::transaction(function () use ($user, $data): User {
             $this->applyUserFields($user, $data);
             $this->applyProfileFields($user, $data);
+            $this->applyClubs($user, $data);
             $this->applyPreferredLevels($user, $data);
             $this->applyAvailabilities($user, $data);
 
-            return $user->fresh(['profile', 'club', 'preferredLevels', 'availabilities']);
+            return $user->fresh(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
         });
     }
 
@@ -53,7 +54,7 @@ class ProfileService
             $disk->delete($oldPath);
         }
 
-        return $user->fresh(['profile', 'club', 'preferredLevels', 'availabilities']);
+        return $user->fresh(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
     }
 
     /** @param  array<string,mixed>  $data */
@@ -65,12 +66,6 @@ class ProfileService
             if (array_key_exists($field, $data)) {
                 $updates[$field] = $data[$field];
             }
-        }
-
-        if (array_key_exists('club_uuid', $data)) {
-            $updates['club_id'] = $data['club_uuid'] === null
-                ? null
-                : Club::where('uuid', $data['club_uuid'])->value('id');
         }
 
         // Recompute denormalized `name` if first_name or last_name touched.
@@ -128,7 +123,46 @@ class ProfileService
         }
     }
 
-    /** @param  array<string,mixed>  $data */
+    /**
+     * Replace semantic : la liste écrase la précédente. Les tuples sont résolus
+     * contre `clubs.uuid` → `clubs.id`, priorité 1..N dans l'ordre du tableau.
+     * Un UUID inconnu est silencieusement ignoré (la validation Request refuse déjà).
+     *
+     * @param  array<string,mixed>  $data
+     */
+    private function applyClubs(User $user, array $data): void
+    {
+        if (! array_key_exists('clubs', $data)) {
+            return;
+        }
+
+        $uuids = array_values(array_unique((array) $data['clubs']));
+        $clubIdsByUuid = Club::whereIn('uuid', $uuids)->pluck('id', 'uuid');
+
+        $user->clubs()->delete();
+        $priority = 1;
+        foreach ($uuids as $uuid) {
+            $clubId = $clubIdsByUuid[$uuid] ?? null;
+            if ($clubId === null) {
+                continue;
+            }
+            $user->clubs()->create([
+                'club_id' => $clubId,
+                'priority' => $priority++,
+            ]);
+            if ($priority > 3) {
+                break; // Sécurité défensive (la validation max:3 est la source de vérité).
+            }
+        }
+    }
+
+    /**
+     * Replace semantic pour les dispos en tuples {day_of_week, period}.
+     * Accepte le slot "Flexible" (day_of_week null + period 'all').
+     * Déduplique sur (day, period) pour éviter de violer l'UNIQUE composite.
+     *
+     * @param  array<string,mixed>  $data
+     */
     private function applyAvailabilities(User $user, array $data): void
     {
         if (! array_key_exists('availabilities', $data)) {
@@ -136,8 +170,28 @@ class ProfileService
         }
 
         $user->availabilities()->delete();
-        foreach (array_unique((array) $data['availabilities']) as $day) {
-            $user->availabilities()->create(['day_of_week' => (int) $day]);
+
+        $seen = [];
+        foreach ((array) $data['availabilities'] as $slot) {
+            if (! is_array($slot)) {
+                continue;
+            }
+            $day = array_key_exists('day_of_week', $slot) && $slot['day_of_week'] !== null
+                ? (int) $slot['day_of_week']
+                : null;
+            $period = $slot['period'] ?? null;
+            if ($period === null) {
+                continue;
+            }
+            $key = ($day ?? 'null').':'.$period;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $user->availabilities()->create([
+                'day_of_week' => $day,
+                'period' => $period,
+            ]);
         }
     }
 }

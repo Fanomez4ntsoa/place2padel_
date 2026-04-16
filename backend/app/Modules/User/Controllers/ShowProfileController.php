@@ -11,7 +11,7 @@ class ShowProfileController extends Controller
 {
     public function __invoke(Request $request, User $user): ProfileResource
     {
-        $user->load(['profile', 'club', 'preferredLevels', 'availabilities']);
+        $user->load(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
 
         return new ProfileResource($user, $this->resolveViewer($request));
     }

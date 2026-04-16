@@ -158,7 +158,8 @@ interface SearchUser {
   uuid: string;
   name: string;
   picture_url: string | null;
-  club?: { name: string; city: string } | null;
+  /** Array de clubs par priority — ProfileResource projection. */
+  clubs?: Array<{ uuid: string; name: string; city: string; priority?: number }>;
 }
 
 /**

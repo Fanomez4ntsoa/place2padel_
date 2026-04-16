@@ -1,3 +1,5 @@
+import type { AvailabilitySlot } from '@/features/profile/useProfile';
+
 export interface SeekingPartnerUser {
   uuid: string;
   name: string;
@@ -5,8 +7,9 @@ export interface SeekingPartnerUser {
   position: 'left' | 'right' | 'both' | null;
   padel_points: number | null;
   ranking: number | null;
+  /** Club principal (priority=1) — backend projette le premier des clubs multi. */
   club: { name: string; city: string } | null;
-  availabilities: number[];
+  availabilities: AvailabilitySlot[];
 }
 
 export interface SeekingPartner {

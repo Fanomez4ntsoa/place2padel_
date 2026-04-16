@@ -24,11 +24,6 @@ class AuthService
     public function register(array $data): array
     {
         $user = DB::transaction(function () use ($data): User {
-            $clubId = null;
-            if (! empty($data['club_uuid'])) {
-                $clubId = Club::where('uuid', $data['club_uuid'])->value('id');
-            }
-
             $user = User::create([
                 'email' => $data['email'],
                 'password' => $data['password'],
@@ -40,8 +35,15 @@ class AuthService
                 'role' => $data['role'] ?? 'player',
                 'auth_type' => 'local',
                 'city' => $data['city'] ?? null,
-                'club_id' => $clubId,
             ]);
+
+            // club_uuid singleton → user_clubs(priority=1). Rétrocompat payload register.
+            if (! empty($data['club_uuid'])) {
+                $clubId = Club::where('uuid', $data['club_uuid'])->value('id');
+                if ($clubId !== null) {
+                    $user->clubs()->create(['club_id' => $clubId, 'priority' => 1]);
+                }
+            }
 
             $user->profile()->create([
                 'license_number' => $data['license_number'] ?? null,
@@ -60,7 +62,7 @@ class AuthService
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        $user->load(['profile', 'club', 'preferredLevels', 'availabilities']);
+        $user->load(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
 
         return [
             'user' => $user,
@@ -103,7 +105,7 @@ class AuthService
             now()->addDays(self::REFRESH_TTL_DAYS),
         )->plainTextToken;
 
-        $user->load(['profile', 'club', 'preferredLevels', 'availabilities']);
+        $user->load(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
 
         return [
             'user' => $user,

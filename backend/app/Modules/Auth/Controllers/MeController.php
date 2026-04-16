@@ -14,7 +14,7 @@ class MeController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $user->load(['profile', 'club', 'preferredLevels', 'availabilities']);
+        $user->load(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
 
         return new UserResource($user);
     }

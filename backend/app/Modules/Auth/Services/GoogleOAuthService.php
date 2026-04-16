@@ -77,7 +77,7 @@ class GoogleOAuthService
 
         $tokens = $this->auth->issueTokenPair($user);
 
-        $user->load(['profile', 'club', 'preferredLevels', 'availabilities']);
+        $user->load(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
 
         return [
             'user' => $user,

@@ -27,7 +27,15 @@ const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 export function PartnerCard({ partner, onLike, onPass, isPending }: Props) {
   const { user, compatibility_score } = partner;
   const initial = (user.name || '?').charAt(0).toUpperCase();
-  const availSet = new Set(user.availabilities);
+  // Slot Flexible (day null) = matche tous les jours → enrichit la Set complète.
+  const hasFlexible = user.availabilities.some((a) => a.day_of_week === null);
+  const availSet = new Set<number>(
+    hasFlexible
+      ? [1, 2, 3, 4, 5, 6, 7]
+      : user.availabilities
+          .map((a) => a.day_of_week)
+          .filter((d): d is number => d !== null),
+  );
 
   return (
     <View className="overflow-hidden rounded-3xl bg-white shadow-sm">

@@ -127,7 +127,7 @@ class MatchmakingService
      */
     public function listCompatibleSeekingPartners(Tournament $tournament, User $viewer): Collection
     {
-        $viewer->loadMissing(['profile', 'availabilities']);
+        $viewer->loadMissing(['profile', 'availabilities', 'clubs']);
 
         $excludedUserIds = $tournament->teams()
             ->get(['captain_id', 'partner_id'])
@@ -140,7 +140,7 @@ class MatchmakingService
         $interests = TournamentInterest::query()
             ->where('tournament_id', $tournament->id)
             ->whereNotIn('user_id', $excludedUserIds)
-            ->with(['user.profile', 'user.availabilities', 'user.club:id,name,city'])
+            ->with(['user.profile', 'user.availabilities', 'user.clubs.club:id,name,city'])
             ->get();
 
         return $interests
@@ -207,7 +207,7 @@ class MatchmakingService
     }
 
     /**
-     * Recouvrement de disponibilités hebdo (user_availabilities.day_of_week ISO 1..7).
+     * Recouvrement de disponibilités hebdo (tuples {day_of_week, period}).
      * Max 25 pts. Consomme overlapAvailabilities().
      */
     private function scoreAvailabilities(User $a, User $b): int
@@ -222,27 +222,46 @@ class MatchmakingService
     }
 
     /**
-     * Nombre de jours communs entre les dispos hebdomadaires des 2 users.
+     * Nombre de slots communs (day_of_week, period).
+     *
+     * Règle "Flexible" (day_of_week null + period 'all') : un user Flexible
+     * match automatiquement tout slot non-flex de l'autre, plafonné à 3 pour
+     * saturer le barème 25 pts. Intent produit : "je m'adapte" = dispo partout.
+     *
      * Lit la relation availabilities (eager-loadée par le caller).
      */
     private function overlapAvailabilities(User $a, User $b): int
     {
-        $daysA = $a->availabilities->pluck('day_of_week')->all();
-        $daysB = $b->availabilities->pluck('day_of_week')->all();
-        return count(array_intersect($daysA, $daysB));
+        $hasFlexA = $a->availabilities->contains(fn ($av) => $av->day_of_week === null);
+        $hasFlexB = $b->availabilities->contains(fn ($av) => $av->day_of_week === null);
+
+        if ($hasFlexA || $hasFlexB) {
+            $otherUser = $hasFlexA ? $b : $a;
+            $otherNonFlexCount = $otherUser->availabilities
+                ->filter(fn ($av) => $av->day_of_week !== null)
+                ->count();
+            return min($otherNonFlexCount, 3);
+        }
+
+        $slotsA = $a->availabilities
+            ->map(fn ($av) => $av->day_of_week.':'.$av->period)
+            ->all();
+        $slotsB = $b->availabilities
+            ->map(fn ($av) => $av->day_of_week.':'.$av->period)
+            ->all();
+        return count(array_intersect($slotsA, $slotsB));
     }
 
     /**
-     * Bonus localisation : même club que l'autre joueur (pas le club du tournoi).
-     * Emergent : 15 pts si club identique, 0 sinon. Tournament passé en param pour
-     * préparer Phase 4.2 (bonus "club du tournoi = club de l'un des deux").
+     * Bonus localisation : au moins un club en commun entre les deux joueurs
+     * (parmi les 3 clubs max). Binaire : ≥ 1 intersection = 15 pts, sinon 0.
+     * Tournament passé en param pour préparer Phase 4.2 (bonus "club du tournoi").
      */
     private function scoreClub(User $a, User $b, Tournament $tournament): int
     {
-        if ($a->club_id && $b->club_id && $a->club_id === $b->club_id) {
-            return 15;
-        }
-        return 0;
+        $clubsA = $a->clubs->pluck('club_id')->all();
+        $clubsB = $b->clubs->pluck('club_id')->all();
+        return count(array_intersect($clubsA, $clubsB)) > 0 ? 15 : 0;
     }
 
     /**

@@ -32,7 +32,6 @@ class User extends Authenticatable
         'name',
         'picture_url',
         'city',
-        'club_id',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -78,9 +77,24 @@ class User extends Authenticatable
         return Storage::disk(config('filesystems.avatars', 's3'))->url($value);
     }
 
-    public function club(): BelongsTo
+    /**
+     * Pivot user_clubs (jusqu'à 3 clubs, ordre 1=principal, 2=secondaire, 3=tertiaire).
+     * Remplace l'ancien users.club_id (supprimé par migration).
+     */
+    public function clubs(): HasMany
     {
-        return $this->belongsTo(Club::class);
+        return $this->hasMany(UserClub::class)->orderBy('priority');
+    }
+
+    /**
+     * Accessor back-compat : renvoie la relation Club principale (priority=1).
+     * Appelant : $user->primaryClub (charge automatiquement si relationLoaded).
+     * Préférer $user->loadMissing('clubs.club') pour éviter N+1.
+     */
+    public function getPrimaryClubAttribute(): ?Club
+    {
+        $principal = $this->clubs->firstWhere('priority', 1);
+        return $principal?->club;
     }
 
     public function profile(): HasOne
