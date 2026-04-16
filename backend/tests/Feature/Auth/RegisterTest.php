@@ -97,17 +97,52 @@ class RegisterTest extends TestCase
         ]))->assertStatus(422)->assertJsonValidationErrors(['password']);
     }
 
-    public function test_role_is_forced_to_player_even_if_admin_sent(): void
+    public function test_admin_role_is_refused_at_register(): void
+    {
+        Event::fake([\App\Modules\Auth\Events\UserRegistered::class]);
+
+        // admin hors whitelist → 422, aucun user créé.
+        $this->postJson('/api/v1/auth/register', $this->payload([
+            'role' => 'admin',
+        ]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['role']);
+
+        $this->assertDatabaseMissing('users', ['email' => 'jean.dupont@gmail.com']);
+    }
+
+    public function test_organizer_role_is_refused_at_register(): void
+    {
+        Event::fake([\App\Modules\Auth\Events\UserRegistered::class]);
+
+        // organizer également hors whitelist (role legacy non exposé à l'inscription publique).
+        $this->postJson('/api/v1/auth/register', $this->payload([
+            'role' => 'organizer',
+        ]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['role']);
+    }
+
+    public function test_referee_role_is_accepted_at_register(): void
     {
         Event::fake([\App\Modules\Auth\Events\UserRegistered::class]);
 
         $response = $this->postJson('/api/v1/auth/register', $this->payload([
-            'role' => 'admin',
+            'role' => 'referee',
         ]));
 
-        $response->assertCreated()->assertJsonPath('data.user.role', 'player');
+        $response->assertCreated()->assertJsonPath('data.user.role', 'referee');
 
-        $this->assertSame('player', User::where('email', 'jean.dupont@gmail.com')->value('role'));
+        $this->assertSame('referee', User::where('email', 'jean.dupont@gmail.com')->value('role'));
+    }
+
+    public function test_default_role_is_player_when_not_sent(): void
+    {
+        Event::fake([\App\Modules\Auth\Events\UserRegistered::class]);
+
+        $response = $this->postJson('/api/v1/auth/register', $this->payload());
+
+        $response->assertCreated()->assertJsonPath('data.user.role', 'player');
     }
 
     public function test_invalid_preferred_level_returns_422(): void

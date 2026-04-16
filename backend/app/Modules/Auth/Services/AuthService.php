@@ -35,7 +35,9 @@ class AuthService
                 'first_name' => $data['first_name'],
                 'last_name' => $data['last_name'],
                 'name' => trim($data['first_name'].' '.$data['last_name']),
-                'role' => 'player',
+                // role validé par StoreRegisterRequest (whitelist player|referee).
+                // Default player si absent — rétrocompat avec les clients qui n'envoient pas le champ.
+                'role' => $data['role'] ?? 'player',
                 'auth_type' => 'local',
                 'city' => $data['city'] ?? null,
                 'club_id' => $clubId,

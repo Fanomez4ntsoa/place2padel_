@@ -30,6 +30,10 @@ class StoreRegisterRequest extends FormRequest
             'first_name' => ['required', 'string', 'min:1', 'max:100'],
             'last_name' => ['required', 'string', 'min:1', 'max:100'],
 
+            // role : whitelist strict player|referee. admin et organizer refusés
+            // (422) pour empêcher toute privilege escalation via le register public.
+            'role' => ['nullable', Rule::in(['player', 'referee'])],
+
             'city' => ['nullable', 'string', 'max:100'],
             'club_uuid' => ['nullable', 'uuid', Rule::exists('clubs', 'uuid')->where('is_active', true)],
 
