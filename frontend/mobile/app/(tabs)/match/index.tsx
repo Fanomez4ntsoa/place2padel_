@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import {
   ArrowRight,
   Bell,
+  Calendar,
   Check,
   ChevronRight,
   Plus,
@@ -26,6 +27,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { EloCard } from '@/components/friendly-matches/EloCard';
 import { FriendlyMatchRow } from '@/components/friendly-matches/FriendlyMatchRow';
 import { UserPickerModal } from '@/components/friendly-matches/UserPickerModal';
+import { GameProposalCard } from '@/components/game-proposals/GameProposalCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button, Card, Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
@@ -34,6 +36,13 @@ import {
   useFriendlyMatches,
   useUserElo,
 } from '@/features/friendly-matches/useFriendlyMatches';
+import type { GameProposal } from '@/features/game-proposals/types';
+import {
+  useCancelGameProposal,
+  useGameProposals,
+  useRespondGameProposal,
+  useStartGameProposal,
+} from '@/features/game-proposals/useGameProposals';
 
 interface PickedUser {
   uuid: string;
@@ -129,10 +138,53 @@ function FriendlyMatchDashboard() {
   const myEloQuery = useUserElo(user?.uuid);
   const pendingMatches = useFriendlyMatches('pending');
   const inProgressMatches = useFriendlyMatches('in_progress');
+  const proposalsQuery = useGameProposals();
+  const respondProposalMut = useRespondGameProposal();
+  const cancelProposalMut = useCancelGameProposal();
+  const startProposalMut = useStartGameProposal();
 
   const [createOpen, setCreateOpen] = useState(false);
 
   const openMatch = (uuid: string) => router.push((`/match/${uuid}/live`) as never);
+
+  const handleRespond = (p: GameProposal, response: 'accepted' | 'refused') =>
+    respondProposalMut
+      .mutateAsync({ uuid: p.uuid, response })
+      .catch((err) => Alert.alert('Erreur', formatApiError(err)));
+
+  const handleCancel = (p: GameProposal) =>
+    Alert.alert('Annuler la partie', 'Confirmer l\'annulation ?', [
+      { text: 'Non', style: 'cancel' },
+      {
+        text: 'Oui, annuler',
+        style: 'destructive',
+        onPress: () =>
+          cancelProposalMut
+            .mutateAsync(p.uuid)
+            .catch((err) => Alert.alert('Erreur', formatApiError(err))),
+      },
+    ]);
+
+  const handleStart = async (p: GameProposal) => {
+    // MVP : assigne automatiquement les 3 premiers accepted dans l'ordre des invitees.
+    // Phase 6.2 v2 : écran dédié pour choisir les rôles.
+    const acceptedInvitees = p.invitees.filter((i) => i.response === 'accepted' && i.user);
+    if (acceptedInvitees.length < 3) {
+      Alert.alert('Impossible', '3 joueurs invités acceptés requis.');
+      return;
+    }
+    try {
+      const { friendly_match_uuid } = await startProposalMut.mutateAsync({
+        uuid: p.uuid,
+        partner_uuid: acceptedInvitees[0].user!.uuid,
+        opponent1_uuid: acceptedInvitees[1].user!.uuid,
+        opponent2_uuid: acceptedInvitees[2].user!.uuid,
+      });
+      router.push(`/match/${friendly_match_uuid}/live` as never);
+    } catch (err) {
+      Alert.alert('Erreur', formatApiError(err));
+    }
+  };
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
@@ -170,6 +222,35 @@ function FriendlyMatchDashboard() {
             >
               {pendingMatches.data.map((m) => (
                 <FriendlyMatchRow key={m.uuid} match={m} onPress={() => openMatch(m.uuid)} />
+              ))}
+            </Section>
+          ) : null}
+
+          {/* Parties planifiées (game-proposals) */}
+          {proposalsQuery.data && proposalsQuery.data.length > 0 ? (
+            <Section
+              icon={<Calendar size={14} color="#E8650A" />}
+              title={`Parties planifiées (${proposalsQuery.data.length})`}
+            >
+              {proposalsQuery.data.map((p) => (
+                <GameProposalCard
+                  key={p.uuid}
+                  proposal={p}
+                  viewerUuid={user?.uuid ?? null}
+                  pending={
+                    respondProposalMut.isPending ||
+                    cancelProposalMut.isPending ||
+                    startProposalMut.isPending
+                  }
+                  onAccept={() => handleRespond(p, 'accepted')}
+                  onRefuse={() => handleRespond(p, 'refused')}
+                  onCancel={() => handleCancel(p)}
+                  onStart={() => handleStart(p)}
+                  onOpenMatch={() =>
+                    p.friendly_match &&
+                    router.push(`/match/${p.friendly_match.uuid}/live` as never)
+                  }
+                />
               ))}
             </Section>
           ) : null}
