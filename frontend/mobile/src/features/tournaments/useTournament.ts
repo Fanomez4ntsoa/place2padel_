@@ -99,3 +99,25 @@ export function useToggleSeeking(uuid: string | undefined) {
     },
   });
 }
+
+/**
+ * POST /tournaments/{uuid}/launch — clôt les inscriptions, transition
+ * status → in_progress, génère les matchs en async (GenerateMatchesJob).
+ * Autorisation : owner ou admin, min 2 équipes registered, status open/full.
+ */
+export function useLaunchTournament(uuid: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/tournaments/${uuid}/launch`);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournament', uuid] });
+      qc.invalidateQueries({ queryKey: ['tournaments'] });
+      qc.invalidateQueries({ queryKey: ['tournament-matches', uuid] });
+      qc.invalidateQueries({ queryKey: ['tournament-pools', uuid] });
+      qc.invalidateQueries({ queryKey: ['tournament-ranking', uuid] });
+    },
+  });
+}

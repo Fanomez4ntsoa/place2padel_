@@ -21,6 +21,7 @@ import { formatApiError } from '@/lib/api';
 import { useCheckoutStatus, useCreateCheckout } from '@/features/payments/usePayments';
 import type { TournamentStatus } from '@/features/tournaments/types';
 import {
+  useLaunchTournament,
   useRegisterTeam,
   useSeekingPartners,
   useToggleSeeking,
@@ -57,6 +58,7 @@ export default function TournamentDetailScreen() {
   const unregisterMut = useUnregisterTeam(id);
   const toggleSeekingMut = useToggleSeeking(id);
   const createCheckoutMut = useCreateCheckout();
+  const launchMut = useLaunchTournament(id);
 
   // TOUS les hooks déclarés AVANT tout return conditionnel (Rules of Hooks React).
   // L'ordre doit rester stable entre les renders, y compris la transition loading→loaded.
@@ -225,6 +227,40 @@ export default function TournamentDetailScreen() {
             price={tournament.price}
           />
         </View>
+
+        {/* Lancer — owner only, status open/full, min 2 équipes */}
+        {tournament.creator?.uuid === user?.uuid &&
+        (tournament.status === 'open' || tournament.status === 'full') ? (
+          <View className="mx-4 mt-3">
+            <Button
+              label={
+                teamsCount < 2
+                  ? `Lancer (min 2 équipes, ${teamsCount} inscrite${teamsCount > 1 ? 's' : ''})`
+                  : 'Lancer le tournoi'
+              }
+              leftIcon={<Trophy size={18} color="#FFFFFF" />}
+              disabled={teamsCount < 2 || launchMut.isPending}
+              loading={launchMut.isPending}
+              onPress={() =>
+                Alert.alert(
+                  'Lancer le tournoi',
+                  `Cela clôt les inscriptions et génère les matchs pour ${teamsCount} équipe${teamsCount > 1 ? 's' : ''}. Action irréversible.`,
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                      text: 'Lancer',
+                      style: 'destructive',
+                      onPress: () =>
+                        launchMut
+                          .mutateAsync()
+                          .catch((err) => Alert.alert('Erreur', formatApiError(err))),
+                    },
+                  ],
+                )
+              }
+            />
+          </View>
+        ) : null}
 
         {/* Tabs */}
         <Tabs<TabKey>
