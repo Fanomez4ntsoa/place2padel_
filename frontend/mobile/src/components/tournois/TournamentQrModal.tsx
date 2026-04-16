@@ -1,8 +1,8 @@
-import { X } from 'lucide-react-native';
-import { ActivityIndicator, Modal, Pressable, View } from 'react-native';
+import { Share2, X } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, Share, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
-import { Text } from '@/design-system';
+import { Button, Text } from '@/design-system';
 import { useTournamentQr } from '@/features/tournaments/useTournament';
 
 interface Props {
@@ -13,6 +13,19 @@ interface Props {
 
 export function TournamentQrModal({ tournamentUuid, visible, onClose }: Props) {
   const { data, isLoading } = useTournamentQr(tournamentUuid, visible);
+
+  const handleShare = async () => {
+    if (!data) return;
+    try {
+      await Share.share({
+        message: `${data.tournament.name} — ${data.share_link}`,
+        url: data.share_link,
+        title: data.tournament.name,
+      });
+    } catch {
+      Alert.alert('Erreur', 'Le partage a échoué.');
+    }
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -48,6 +61,13 @@ export function TournamentQrModal({ tournamentUuid, visible, onClose }: Props) {
               <Text variant="caption" className="mt-3 text-center text-[11px]">
                 Partage ce code avec les joueurs pour qu'ils accèdent au tournoi en un scan.
               </Text>
+
+              <Button
+                label="Partager le lien"
+                onPress={handleShare}
+                leftIcon={<Share2 size={16} color="#FFFFFF" />}
+                className="mt-4 w-full"
+              />
             </>
           )}
         </Pressable>
