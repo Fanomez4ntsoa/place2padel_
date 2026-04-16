@@ -637,7 +637,7 @@ php artisan make:event TournamentCreated
 
 ---
 
-*Dernière mise à jour : 16 avril 2026 (Phase 6.2 clôturée + gaps G2/G3/G4 comblés + 7 bugs grand test résolus)*
+*Dernière mise à jour : 16 avril 2026 fin de session (Phase 6.2 clôturée + tous les gaps audit fermés + MVP mobile complet)*
 *Vision & validation : Fanomezantsoa | Implémentation : Claude Code*
 
 1. **Sur-architecture** : pas de microservices d'emblée — Laravel monolithe modulaire d'abord
@@ -841,17 +841,17 @@ Modèle : **paiement par tournoi** (l'organisateur choisit à la création entre
 | Module | Endpoints | Tests |
 |--------|-----------|-------|
 | Auth | 8 | 36 |
-| User/Profile | 6 | 45 |
+| User/Profile | 6 | 45 *(+ schéma multi-clubs + availabilities period)* |
 | Club | 5 | 20 |
-| Tournament | 10 | 35 |
-| Match Engine | 7 | 44 *(+1 pool standings team_name/seed, fix 0b2fd5c)* |
+| Tournament | 11 | 44 *(+ GET /tournaments/mine + 9 tests MyTournamentsTest)* |
+| Match Engine | 7 | 44 |
 | Notifications | 6 | 17 |
-| Matchmaking | 11 | 27 |
+| Matchmaking | 12 | 30 *(+ PUT /conversations/{uuid}/read + 3 tests mark-read)* |
 | Feed social | 9 | 24 |
 | FriendlyMatch + ELO | 13 | 30 |
 | GameProposal | 5 | 19 |
 | Payment (Stripe) | 3 | 14 |
-| **TOTAL** | **83** | **310** *(1110 assertions)* |
+| **TOTAL** | **85** | **329** *(1165 assertions)* |
 
 ### Phase 6 — App mobile React Native + Expo
 Branche active : **`main`** (toutes les phases 6.1 → 6.2 mergées au 2026-04-16)
@@ -888,10 +888,10 @@ Projet Emergent commit **39b6544** — `~/project/placeToPadel/frontend/` (resyn
 - [x] Nouvelles pages : MatchingPage + OrganisateursPage (marketing statique)
 - [x] Tournaments (header global délégué à AppHeader via `(tabs)/_layout.tsx`)
 
-#### Phase 6.2 — Fonctionnalités avancées ✅ COMPLÈTE (tout sur `main`)
+#### Phase 6.2 — Fonctionnalités avancées ✅ COMPLÈTE + tous les gaps audit fermés (tout sur `main`)
 Référence : Emergent **39b6544** (resync post-d541157 avec Stripe + Matchs amicaux + ELO + Match tab en navbar).
 
-Backend post-Phase 6.2 : **310 tests PHPUnit verts** (1110 assertions, +1 test pool standings ajouté au grand test). TSC mobile clean.
+Backend post-Phase 6.2 + audit gap-closing : **329 tests PHPUnit verts** (1165 assertions). TSC mobile clean.
 
 **Groupes livrés et mergés** :
 - [x] **G1 — Score live** : MatchLivePage + Pools + Ranking, tie-break 8-8, double validation capitaine, forfait owner/admin, badge LIVE pulsé (Reanimated), polling 10s. Tabs conditionnels status-based (open/full → infos/teams/seeking, in_progress/completed → matches/pools/ranking, max 3 tabs).
@@ -930,11 +930,36 @@ Backend post-Phase 6.2 : **310 tests PHPUnit verts** (1110 assertions, +1 test p
 - Gap G3/G4 : aucune UI conversations + aucun QR scanner (deps natives manquantes) → fix `3a36d94` (installe expo-camera + react-native-qrcode-svg, 6 nouveaux fichiers écrans + modal + hooks) ✅
 - Latence 30s du badge Messages post-accept proposition (invalidation `['counters', 'messages']` manquante) → fix `3a36d94` ✅
 
-**Grand test émulateur (flow complet Étapes 1→13)** : en cours, traçé dans [RESUME.md](RESUME.md) à la racine avec données de test (UUIDs Alice/Thomas/Sophie/Lucas/Marc/Emma + 2 tournois seedés). Étapes 1→7 validées, Étape 8 (Score live) en cours.
+**Grand test émulateur (flow complet Étapes 1→13)** : ✅ validé, traçé dans [RESUME.md](RESUME.md). Données seed (UUIDs Alice/Thomas/Sophie/Lucas/Marc/Emma + 2 tournois + matchs amicaux).
+
+#### Gaps audit 16 avril — tous fermés ✅
+
+L'audit du 16 avril avait identifié 4 bloquants 🔴 + 5 importants 🟡. Tous les implémentables ont été fermés entre le 16 et la clôture :
+
+| # | Gap | Fix | Commit |
+|---|---|---|---|
+| 🔴 1 | Création tournoi StubScreen | Wizard 3 étapes complet + useCreateTournament | `11d74cc` → merge `86ab3b2` |
+| 🔴 2 | Cockpit Referee bouton "Créer" fake Alert | Route wizard | `11d74cc` |
+| 🔴 3 | Cockpit Referee Messages disabled | MessagesActionCard partagé | `6e5b432` |
+| 🔴 4 | "Mes tournois" pointe liste publique | Nouveau `GET /tournaments/mine` + écran pills 3 filtres (En cours / À venir / Passés) | `3a20ee6` → merge `a737a6e` |
+| 🟡 5 | Écran Notifications inexistant | `/notifications` paginé + 15 types mappés + NotificationsActionCard | `5be0ff4` |
+| 🟡 6 | Cockpit Player Partenaires disabled | Lien activé → `/(tabs)/partenaires` | `3a20ee6` |
+| 🟡 7 | Édition profil étendue | Form édition complet : 3 clubs autocomplete + 10 slot dispos + position (pivot `user_clubs` + `period` ENUM + règle Flexible généreux) | `ec2ae4d` |
+| 🟡 8 | Google OAuth mobile | ⏸ credentials externes |  |
+| 🟡 9 | Rename scheme placetopadel | ⏸ backlog Phase 7 bundle identifiers |  |
+
+#### Chantiers additionnels livrés (hors audit initial)
+
+- **HomePage marketing orpheline récupérée** (`28f25f1`) — le fichier avait été créé en `2bfae93` sur `feature/mobile-phase-6-2` mais jamais mergé. Cherry-pick + `app/index.tsx` redirige non-auth → `/(tabs)/home` au lieu de `/login`
+- **AppHeader complet port Emergent 39b6544** (`d362536`) — DrawerMenu 280px (Reanimated) + UniversalSearchOverlay (3 requêtes parallèles /tournaments /clubs /users, debounce 300ms) + Bell icône → /notifications + layout 3-zone stable (fix `bf8b326`)
+- **PUT /conversations/{conversation}/read** backend (`7d8b332`) — mark-read conversation atomique, fix badge Messages qui restait après ouverture
 
 ### Décisions produit actées
 - **BottomNav** : 5 onglets = Actu / Tournois / Cockpit / **Match** (remplace Clubs) / Partenaires
 - **Clubs** : reste accessible via routes, hors navbar
+- **Profil multi-clubs** : pivot `user_clubs (user_id, club_id, priority 1..3)` — jusqu'à 3 clubs/joueur, autocomplete sur `/clubs/search`
+- **Availabilities** : tuples `{day_of_week: int|null, period: morning|afternoon|evening|all}` — 10 slots préset (Lun-Ven soir + Sam/Dim matin/après-midi + Flexible). Slot Flexible = day null + period 'all' (exclusif, match tout côté matchmaking — "généreux")
+- **scoreClub matchmaking** : binaire ≥1 club commun = 15 pts (array_intersect sur `clubs.club_id`)
 - **Stripe** : modèle "paiement par tournoi" (on_site / online au choix organisateur), pas d'abonnement mensuel
 - **Google OAuth mobile** : masqué UI jusqu'à credentials, backend Socialite intact
 - **Expo Push** : configuration EAS en cours, pas de blocage des autres groupes
