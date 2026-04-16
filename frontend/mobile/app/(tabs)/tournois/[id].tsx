@@ -4,6 +4,7 @@ import {
   Calendar,
   Clock,
   MapPin,
+  QrCode,
   Trophy,
   UserPlus,
   Users,
@@ -30,6 +31,7 @@ import { PoolCard } from '@/components/matches/PoolCard';
 import { RankingList } from '@/components/matches/RankingList';
 import { Tabs } from '@/components/common/Tabs';
 import { TournamentDetailSkeleton } from '@/components/tournois/TournamentListSkeleton';
+import { TournamentQrModal } from '@/components/tournois/TournamentQrModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
@@ -93,6 +95,7 @@ export default function TournamentDetailScreen() {
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
   const [seekingModalOpen, setSeekingModalOpen] = useState(false);
   const [seekingMessage, setSeekingMessage] = useState('');
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   // Auto-switch du tab si la liste des tabs visibles change.
   // open/full      : [infos, teams, seeking]
@@ -201,8 +204,8 @@ export default function TournamentDetailScreen() {
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Back minimal — AppHeader global prend le reste */}
-        <View className="px-4 pt-2 pb-1">
+        {/* Back + QR — AppHeader global prend le reste */}
+        <View className="flex-row items-center justify-between px-4 pt-2 pb-1">
           <Pressable
             onPress={() => router.back()}
             className="h-9 w-9 items-center justify-center rounded-full"
@@ -210,6 +213,15 @@ export default function TournamentDetailScreen() {
           >
             <ArrowLeft size={20} color="#1A2A4A" />
           </Pressable>
+          {user ? (
+            <Pressable
+              onPress={() => setQrModalOpen(true)}
+              className="h-9 w-9 items-center justify-center rounded-full"
+              hitSlop={8}
+            >
+              <QrCode size={20} color="#1A2A4A" />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Titre + statut dans le contenu */}
@@ -546,6 +558,12 @@ export default function TournamentDetailScreen() {
         onClose={() => setSeekingModalOpen(false)}
         onSubmit={submitSeeking}
         submitting={toggleSeekingMut.isPending}
+      />
+
+      <TournamentQrModal
+        tournamentUuid={id ?? ''}
+        visible={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
       />
     </SafeAreaView>
   );

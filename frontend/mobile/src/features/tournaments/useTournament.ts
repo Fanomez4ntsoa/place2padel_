@@ -142,6 +142,28 @@ export function useToggleSeeking(uuid: string | undefined) {
 }
 
 /**
+ * GET /tournaments/{uuid}/qrcode — payload QR (share_link) + metadata légère.
+ * La génération de l'image QR est déléguée au client (react-native-qrcode-svg).
+ */
+export interface TournamentQrData {
+  share_link: string;
+  tournament: { uuid: string; name: string; date: string | null; status: string };
+  club: { name: string; city: string };
+}
+
+export function useTournamentQr(uuid: string | undefined, enabled: boolean = true) {
+  return useQuery<TournamentQrData>({
+    queryKey: ['tournament-qr', uuid],
+    enabled: !!uuid && enabled,
+    queryFn: async () => {
+      const { data } = await api.get(`/tournaments/${uuid}/qrcode`);
+      return data.data as TournamentQrData;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
  * POST /tournaments/{uuid}/launch — clôt les inscriptions, transition
  * status → in_progress, génère les matchs en async (GenerateMatchesJob).
  * Autorisation : owner ou admin, min 2 équipes registered, status open/full.

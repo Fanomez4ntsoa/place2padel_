@@ -42,12 +42,12 @@ export function AppHeader() {
             <IconButton
               icon={<MessageCircle size={20} color="#1A2A4A" />}
               badge={unreadMessages}
-              onPress={() => undefined /* Phase 6.2 */}
+              onPress={() => router.push('/conversations')}
             />
             <IconButton
               icon={<Bell size={20} color="#1A2A4A" />}
               badge={unreadNotifications}
-              onPress={() => undefined /* Phase 6.2 */}
+              onPress={() => undefined /* Phase 6.2 — écran notifications */}
             />
           </View>
         ) : (

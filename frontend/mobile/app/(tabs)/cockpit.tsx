@@ -10,6 +10,7 @@ import {
   MessageCircle,
   TreePalm,
   Plus,
+  QrCode,
   Search,
   Swords,
   Trophy,
@@ -32,6 +33,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text, useFadeInUp } from '@/design-system';
 import { formatApiError } from '@/lib/api';
+import { useConversations } from '@/features/conversations/useConversations';
 import { useProposals } from '@/features/proposals/useProposals';
 import { useMySeekingTournaments } from '@/features/tournaments/useTournament';
 import Animated from 'react-native-reanimated';
@@ -222,6 +224,12 @@ function CockpitPlayer({
             subtitle="Tous mes engagements"
             onPress={() => router.push('/(tabs)/tournois')}
           />
+          <ActionCard
+            icon={QrCode}
+            label="Scanner un QR"
+            subtitle="Rejoindre un tournoi en un scan"
+            onPress={() => router.push('/scan' as never)}
+          />
           <ProposalsActionCard onPress={() => router.push('/proposals')} />
           <ActionCard
             icon={Bell}
@@ -230,13 +238,7 @@ function CockpitPlayer({
             onPress={() => undefined}
             disabled
           />
-          <ActionCard
-            icon={MessageCircle}
-            label="Messages"
-            subtitle="Dispo dans une prochaine itération"
-            onPress={() => undefined}
-            disabled
-          />
+          <MessagesActionCard onPress={() => router.push('/conversations')} />
           <ActionCard
             icon={Heart}
             label="Partenaires"
@@ -261,6 +263,41 @@ function CockpitPlayer({
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// MessagesActionCard — ActionCard conversations avec badge unread
+// ──────────────────────────────────────────────────────────────────
+function MessagesActionCard({ onPress }: { onPress: () => void }) {
+  const { data } = useConversations();
+  const unread = (data ?? []).filter((c) => c.unread_count > 0).length;
+  const subtitle = unread > 0 ? `${unread} non lue${unread > 1 ? 's' : ''}` : 'Mes conversations';
+
+  return (
+    <Pressable onPress={onPress}>
+      <Card>
+        <View className="flex-row items-center gap-3">
+          <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
+            <MessageCircle size={20} color="#1A2A4A" />
+            {unread > 0 ? (
+              <View className="absolute -right-1 -top-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-orange px-1">
+                <Text className="text-[10px] font-heading-black text-white">
+                  {unread > 99 ? '99+' : unread}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View className="flex-1">
+            <Text variant="body-medium">Messages</Text>
+            <Text variant="caption" className="mt-0.5">
+              {subtitle}
+            </Text>
+          </View>
+          <ChevronRight size={16} color="#94A3B8" />
+        </View>
+      </Card>
+    </Pressable>
   );
 }
 
