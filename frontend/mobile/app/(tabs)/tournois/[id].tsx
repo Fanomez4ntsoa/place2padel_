@@ -56,8 +56,12 @@ export default function TournamentDetailScreen() {
   const registerMut = useRegisterTeam(id);
   const unregisterMut = useUnregisterTeam(id);
   const toggleSeekingMut = useToggleSeeking(id);
+  const createCheckoutMut = useCreateCheckout();
 
+  // TOUS les hooks déclarés AVANT tout return conditionnel (Rules of Hooks React).
+  // L'ordre doit rester stable entre les renders, y compris la transition loading→loaded.
   const [tab, setTab] = useState<TabKey>('infos');
+  const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
 
   if (isLoading || !tournament) {
     return (
@@ -76,9 +80,6 @@ export default function TournamentDetailScreen() {
     (t) => t.captain.uuid === user?.uuid || t.partner?.uuid === user?.uuid,
   );
   const isSeeking = !!seekingQuery.data?.data?.some((s) => s.user.uuid === user?.uuid);
-
-  const createCheckoutMut = useCreateCheckout();
-  const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
 
   const handleRegister = async () => {
     // Si tournoi online payant → Stripe Checkout.
