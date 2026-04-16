@@ -848,8 +848,8 @@ Modèle : **paiement par tournoi** (l'organisateur choisit à la création entre
 | Feed social | 9 | 24 |
 | **TOTAL** | **62** | **243** |
 
-### Phase 6 — App mobile React Native + Expo (EN COURS)
-Branche active : `feature/mobile-phase-6-1`
+### Phase 6 — App mobile React Native + Expo
+Branche active : **`main`** (toutes les phases 6.1 → 6.2 mergées au 2026-04-16)
 Stack : React Native + Expo SDK 54, Expo Router, NativeWind v4, TanStack Query, Reanimated 4
 
 #### Référence visuelle définitive
@@ -884,31 +884,39 @@ Projet Emergent commit **d541157** — `~/project/placeToPadel/frontend/`
 - [ ] Nouvelles pages : MatchingPage + OrganisateursPage (marketing statique)
 - [ ] Tournaments (header délégué AppHeader)
 
-#### Phase 6.2 — Fonctionnalités avancées (EN COURS)
+#### Phase 6.2 — Fonctionnalités avancées ✅ COMPLÈTE (tout sur `main`)
 Référence : Emergent **39b6544** (resync post-d541157 avec Stripe + Matchs amicaux + ELO).
 
-**Groupes déjà livrés** :
-- [x] G1 : Score live (MatchLivePage + Pools + Ranking) — branche `feature/mobile-phase-6-2`
-- [x] G2 : Seeking partner complet (mySeekings + Proposals inbox + message optionnel)
-- [x] G3 : Chat / Conversations (list + détail + polling 10s)
-- [x] G4 : QR scanner (expo-camera) + TournamentQrModal (react-native-qrcode-svg)
-- [x] Bonus : bouton "Lancer un tournoi" owner-only
-- [x] Fix backend : whitelist `role` register (player|referee)
-- [x] Hide Google OAuth button (backend Socialite intact)
+Backend post-Phase 6.2 : **309 tests PHPUnit verts** (1108 assertions). TSC mobile clean.
 
-**Groupes bloqués par credentials externes** :
-- [ ] **G5 — Google OAuth mobile** (bloqué GOOGLE_CLIENT_ID Android + iOS)
-- [ ] **G6 — Push notifications Expo** (bloqué EAS projectId + FCM key + APNs). Configuration EAS en cours.
+**Groupes livrés et mergés** :
+- [x] **G1 — Score live** : MatchLivePage + Pools + Ranking, tie-break 8-8, double validation capitaine, forfait owner/admin. Tabs conditionnels status-based (open/full → infos/teams/seeking, in_progress/completed → matches/pools/ranking, max 3 tabs).
+- [x] **G2 — Seeking partner complet** : mySeekings, Proposals inbox, message optionnel, bloc Cockpit "Je suis seul"
+- [x] **G3 — Chat / Conversations** : liste + détail + composer, polling 10s (pas de websocket MVP)
+- [x] **G4 — QR scanner** : expo-camera + parsing share_link, TournamentQrModal avec react-native-qrcode-svg + partage natif
+- [x] **G7 — Matchs amicaux + ELO** : module Laravel FriendlyMatch + UserElo (K=0.3, échelle 1-10, **lock threshold = 10 matchs** — code Emergent fait foi vs PRD qui disait 5), 13 endpoints, 30 tests. Mobile : 2 écrans /match, onglet Matchs dans Profile, BottomNav refonte (Clubs sort, Match entre Cockpit et Partenaires, icône Swords).
+- [x] **G8 — Game proposals** (dépend G7) : module GameProposal, 5 endpoints, 19 tests. Mobile : GameProposalCard intégrée dans tab Match, flow accept/refuse/start bypass pending.
+- [x] **G9 — Stripe par tournoi** : modèle on_site/online au choix organisateur, stripe/stripe-php natif (pas emergentintegrations), PriceParser ("15€" → 15.0), 3 endpoints, 14 tests. Mobile : CheckoutPollingOverlay + CTA dynamique "S'inscrire — 15€".
+- [x] **Resend activé** : `MAIL_MAILER=resend`, clé API présente (domaine placetopadel.com à vérifier dashboard pour prod).
+- [x] **Bonus : bouton "Lancer un tournoi"** owner-only avec conditions (min 2 équipes, status open/full)
+- [x] Fix backend : whitelist `role` register (player|referee, admin/organizer refusés 422)
+- [x] Hide Google OAuth UI (backend Socialite intact)
+- [x] Rename scheme : `place2padel` → à aligner avec `placetopadel://` pour deep links (BACKLOG.md)
 
-**Nouveaux groupes à livrer** (alignés Emergent 39b6544) :
-- [ ] **G7 — Matchs amicaux + ELO** (Phase 6 Emergent) :
-  - Backend : module `FriendlyMatch`, migrations `friendly_matches` + `user_elos` + `match_participants`, 12 endpoints, `ELOService` (K=0.3, échelle 1-10, locked <5 matchs)
-  - Mobile : 2 nouveaux écrans (`/match` FriendlyMatchPage + `/match/[id]/live` FriendlyMatchLivePage), onglet Matchs dans Profile (ELO card + history), refonte **BottomNav** (Clubs sort, Match entre Cockpit et Partenaires, icône Swords)
-- [ ] **G8 — Game proposals** (dépend G7) :
-  - Backend : module `GameProposal`, 4 endpoints (POST / PUT respond / DELETE / POST start → crée friendly_match)
-  - Mobile : intégration dans l'écran Partenaires (bouton "Proposer un match" après like) et dans AppHeader (recherche utilisateurs + invite)
-- [ ] **G9 — Stripe par tournoi** (Phase 5.2 renommée) : voir section dédiée ci-dessus
-- [ ] **G10 — Resend production** : remplacer la clé placeholder dans `.env`, tester `SendEmailJob` end-to-end
+**Groupes bloqués par credentials externes (non critiques MVP)** :
+- [ ] **G5 — Google OAuth mobile** : credentials GOOGLE_CLIENT_ID Android + iOS requis
+- [ ] **G6 — Push notifications Expo** : EAS projectId + FCM key + APNs requis. Configuration en cours.
+
+**Bugs résiduels notés au grand test émulateur** (tous avec fix commits) :
+- Badge prix absent sur TournamentCard → fix `982cffd` ✅
+- CTA "S'inscrire" visible pour creator/referee → fix `7e901c3` ✅
+- Bouton "Lancer" manquant sur main → fix `149a67a` ✅
+- G1 Score live non mergé sur main → fix `3f9e009` + cleanup `41a33f1` ✅
+- Rules of Hooks violation → fix `f632ea4` ✅
+- Tabs limitées à 3 max → fix `f44e77f` ✅
+- Badge LIVE non pulsé + boutons +/- owner non-participant → fix `bcded00` ✅
+
+**Grand test émulateur (flow complet Étapes 1→13)** : en cours, traçé dans [RESUME.md](RESUME.md) à la racine avec données de test (UUIDs Alice/Thomas/Sophie/Lucas/Marc/Emma + 2 tournois seedés). Étapes 1→7 validées, Étape 8 (Score live) en cours.
 
 ### Décisions produit actées
 - **BottomNav** : 5 onglets = Actu / Tournois / Cockpit / **Match** (remplace Clubs) / Partenaires
