@@ -18,6 +18,7 @@ import { Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
 import {
   useConversations,
+  useMarkConversationRead,
   useMessages,
   useSendMessage,
 } from '@/features/conversations/useConversations';
@@ -32,6 +33,7 @@ export default function ChatScreen() {
   const convsQuery = useConversations();
   const messagesQuery = useMessages(conversationUuid);
   const sendMut = useSendMessage(conversationUuid);
+  const markReadMut = useMarkConversationRead();
 
   const [text, setText] = useState('');
   const listRef = useRef<FlatList<PrivateMessage>>(null);
@@ -49,6 +51,16 @@ export default function ChatScreen() {
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     }
   }, [messages.length]);
+
+  // Mark-read : à chaque arrivée de messages (mount + polling) on pose read_at
+  // côté backend. Idempotent (marked_read=0 si rien à marquer), pas besoin de
+  // guard. L'invalidation de ['conversations'] + ['counters', 'messages']
+  // fait disparaître le badge immédiatement.
+  useEffect(() => {
+    if (!conversationUuid || messages.length === 0) return;
+    markReadMut.mutate(conversationUuid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationUuid, messages.length]);
 
   const initial = (otherUser?.name ?? '?').trim().charAt(0).toUpperCase();
 

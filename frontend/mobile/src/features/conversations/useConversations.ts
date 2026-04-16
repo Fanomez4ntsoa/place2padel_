@@ -55,3 +55,23 @@ export function useSendMessage(conversationUuid: string | undefined) {
     },
   });
 }
+
+/**
+ * PUT /conversations/{uuid}/read — marque toutes les notifs 'message' non-lues
+ * de cette conv comme lues en un seul UPDATE backend.
+ * Idempotent : appelé à chaque ouverture de l'écran chat (pas de guard unread > 0
+ * car le count local peut être stale).
+ */
+export function useMarkConversationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (conversationUuid: string) => {
+      const { data } = await api.put(`/conversations/${conversationUuid}/read`);
+      return data.data as { conversation_uuid: string; marked_read: number };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+      qc.invalidateQueries({ queryKey: ['counters', 'messages'] });
+    },
+  });
+}

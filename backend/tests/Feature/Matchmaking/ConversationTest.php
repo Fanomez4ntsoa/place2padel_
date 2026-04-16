@@ -3,6 +3,7 @@
 namespace Tests\Feature\Matchmaking;
 
 use App\Models\Conversation;
+use App\Models\Notification;
 use App\Models\PrivateMessage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -88,5 +89,70 @@ class ConversationTest extends TestCase
         $res->assertOk();
         $texts = array_column($res->json('data'), 'text');
         $this->assertSame(['1', '2', '3'], $texts);
+    }
+
+    public function test_mark_conversation_read_sets_read_at_on_message_notifications(): void
+    {
+        [$a, , $conv] = $this->seedPair();
+
+        // 2 notifications 'message' non-lues pointant sur cette conv + 1 sur une autre conv + 1 déjà lue.
+        $otherUuid = '019d9999-0000-7000-8000-000000000000';
+        Notification::create([
+            'user_id' => $a->id, 'type' => 'message', 'title' => 't', 'message' => 'm',
+            'data' => ['conversation_uuid' => $conv->uuid],
+        ]);
+        Notification::create([
+            'user_id' => $a->id, 'type' => 'message', 'title' => 't', 'message' => 'm',
+            'data' => ['conversation_uuid' => $conv->uuid],
+        ]);
+        Notification::create([
+            'user_id' => $a->id, 'type' => 'message', 'title' => 't', 'message' => 'm',
+            'data' => ['conversation_uuid' => $otherUuid],
+        ]);
+        Notification::create([
+            'user_id' => $a->id, 'type' => 'message', 'title' => 't', 'message' => 'm',
+            'data' => ['conversation_uuid' => $conv->uuid],
+            'read_at' => now()->subHour(),
+        ]);
+
+        $res = $this->putJson("/api/v1/conversations/{$conv->uuid}/read", [], $this->headers($a));
+        $res->assertOk()->assertJsonPath('data.marked_read', 2);
+
+        // Les 2 unread de cette conv sont lus, la conv autre et la déjà-lue inchangées.
+        $unreadForConv = Notification::where('user_id', $a->id)
+            ->where('type', 'message')
+            ->whereNull('read_at')
+            ->get()
+            ->filter(fn ($n) => ($n->data['conversation_uuid'] ?? null) === $conv->uuid)
+            ->count();
+        $this->assertSame(0, $unreadForConv);
+
+        $unreadOtherConv = Notification::where('user_id', $a->id)
+            ->where('type', 'message')
+            ->whereNull('read_at')
+            ->get()
+            ->filter(fn ($n) => ($n->data['conversation_uuid'] ?? null) === $otherUuid)
+            ->count();
+        $this->assertSame(1, $unreadOtherConv);
+    }
+
+    public function test_mark_conversation_read_refuses_non_participant(): void
+    {
+        [, , $conv] = $this->seedPair();
+        $intruder = User::factory()->create();
+
+        $this->putJson("/api/v1/conversations/{$conv->uuid}/read", [], $this->headers($intruder))
+            ->assertForbidden();
+    }
+
+    public function test_mark_conversation_read_is_idempotent(): void
+    {
+        [$a, , $conv] = $this->seedPair();
+
+        $first = $this->putJson("/api/v1/conversations/{$conv->uuid}/read", [], $this->headers($a));
+        $first->assertOk()->assertJsonPath('data.marked_read', 0);
+
+        $second = $this->putJson("/api/v1/conversations/{$conv->uuid}/read", [], $this->headers($a));
+        $second->assertOk()->assertJsonPath('data.marked_read', 0);
     }
 }

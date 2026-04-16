@@ -78,8 +78,11 @@ function IconButton({
     <Pressable onPress={onPress} className="h-9 w-9 items-center justify-center">
       {icon}
       {badge > 0 ? (
-        <View className="absolute right-1 top-1 h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-white bg-brand-orange px-1">
-          <Text variant="caption" className="text-[9px] font-heading-black text-white">
+        <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-brand-orange px-1">
+          <Text
+            className="font-heading-black text-white"
+            style={{ fontSize: 10, lineHeight: 12, includeFontPadding: false, textAlignVertical: 'center' }}
+          >
             {badge > 99 ? '99+' : badge}
           </Text>
         </View>
