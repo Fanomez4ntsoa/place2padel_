@@ -76,24 +76,23 @@ export default function TournamentDetailScreen() {
   const [tab, setTab] = useState<TabKey>('infos');
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
 
-  // Auto-switch du tab si la liste des tabs visibles change (ex : après /launch
-  // le tab "seeking" disparaît, on bascule vers "matches" si l'user y était).
+  // Auto-switch du tab si la liste des tabs visibles change.
+  // open/full      : [infos, teams, seeking]
+  // in_progress/completed : [matches, pools, ranking]
   const tournamentStatus = tournament?.status;
+  const isLaunched =
+    tournamentStatus === 'in_progress' || tournamentStatus === 'completed';
+  const LAUNCHED_TABS: readonly TabKey[] = ['matches', 'pools', 'ranking'];
+  const OPEN_TABS: readonly TabKey[] = ['infos', 'teams', 'seeking'];
   useEffect(() => {
     if (!tournamentStatus) return;
-    if (
-      tab === 'seeking' &&
-      (tournamentStatus === 'in_progress' || tournamentStatus === 'completed')
-    ) {
+    if (isLaunched && !LAUNCHED_TABS.includes(tab)) {
       setTab('matches');
-    }
-    if (
-      (tab === 'matches' || tab === 'pools' || tab === 'ranking') &&
-      (tournamentStatus === 'open' || tournamentStatus === 'full')
-    ) {
+    } else if (!isLaunched && !OPEN_TABS.includes(tab)) {
       setTab('infos');
     }
-  }, [tournamentStatus, tab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentStatus, tab, isLaunched]);
 
   if (isLoading || !tournament) {
     return (
@@ -103,7 +102,7 @@ export default function TournamentDetailScreen() {
     );
   }
 
-  const status = STATUS[tournament.status];
+  const statusStyle = STATUS[tournament.status];
   const teamsCount = tournament.teams?.length ?? tournament.teams_count ?? 0;
   const max = tournament.max_teams || 1;
   const progress = Math.min((teamsCount / max) * 100, 100);
@@ -185,9 +184,9 @@ export default function TournamentDetailScreen() {
           <Text variant="h2" className="flex-1 text-[22px]">
             {tournament.name}
           </Text>
-          <View className={`rounded-full border px-3 py-1 ${status.wrapperClass}`}>
-            <Text variant="caption" className={`${status.labelClass} text-[11px] font-heading`}>
-              {status.label}
+          <View className={`rounded-full border px-3 py-1 ${statusStyle.wrapperClass}`}>
+            <Text variant="caption" className={`${statusStyle.labelClass} text-[11px] font-heading`}>
+              {statusStyle.label}
             </Text>
           </View>
         </View>
@@ -295,21 +294,13 @@ export default function TournamentDetailScreen() {
           </View>
         ) : null}
 
-        {/* Tabs — Matches/Poules/Classement apparaissent uniquement quand le tournoi est lancé */}
+        {/* Tabs — 3 max pour rentrer à l'écran :
+            - open/full      : Infos / Équipes / Seeking
+            - in_progress/completed : Matchs / Poules / Classement (les infos d'organisation
+              ne sont plus prioritaires une fois le tournoi lancé) */}
         <Tabs<TabKey>
-          tabs={[
-            { key: 'infos', label: 'Infos' },
-            { key: 'teams', label: 'Équipes', count: teamsCount },
-            ...(tournament.status === 'open' || tournament.status === 'full'
-              ? [
-                  {
-                    key: 'seeking' as TabKey,
-                    label: 'Seeking',
-                    count: seekingQuery.data?.meta.count ?? 0,
-                  },
-                ]
-              : []),
-            ...(tournament.status === 'in_progress' || tournament.status === 'completed'
+          tabs={
+            tournament.status === 'in_progress' || tournament.status === 'completed'
               ? [
                   {
                     key: 'matches' as TabKey,
@@ -319,8 +310,16 @@ export default function TournamentDetailScreen() {
                   { key: 'pools' as TabKey, label: 'Poules' },
                   { key: 'ranking' as TabKey, label: 'Classement' },
                 ]
-              : []),
-          ]}
+              : [
+                  { key: 'infos' as TabKey, label: 'Infos' },
+                  { key: 'teams' as TabKey, label: 'Équipes', count: teamsCount },
+                  {
+                    key: 'seeking' as TabKey,
+                    label: 'Seeking',
+                    count: seekingQuery.data?.meta.count ?? 0,
+                  },
+                ]
+          }
           value={tab}
           onChange={setTab}
         />
