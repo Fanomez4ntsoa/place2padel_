@@ -4,6 +4,7 @@ import {
   Bell,
   ChevronRight,
   Heart,
+  Inbox,
   LogOut,
   MapPin,
   MessageCircle,
@@ -31,6 +32,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text, useFadeInUp } from '@/design-system';
 import { formatApiError } from '@/lib/api';
+import { useProposals } from '@/features/proposals/useProposals';
 import { useMySeekingTournaments } from '@/features/tournaments/useTournament';
 import Animated from 'react-native-reanimated';
 
@@ -220,6 +222,7 @@ function CockpitPlayer({
             subtitle="Tous mes engagements"
             onPress={() => router.push('/(tabs)/tournois')}
           />
+          <ProposalsActionCard onPress={() => router.push('/proposals')} />
           <ActionCard
             icon={Bell}
             label="Notifications"
@@ -258,6 +261,41 @@ function CockpitPlayer({
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// ProposalsActionCard — ActionCard avec subtitle dynamique (N en attente)
+// ──────────────────────────────────────────────────────────────────
+function ProposalsActionCard({ onPress }: { onPress: () => void }) {
+  const { data } = useProposals('received');
+  const pendingCount = data?.filter((p) => p.status === 'pending').length ?? 0;
+  const subtitle = pendingCount > 0 ? `${pendingCount} en attente` : 'Reçues et envoyées';
+
+  return (
+    <Pressable onPress={onPress}>
+      <Card>
+        <View className="flex-row items-center gap-3">
+          <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
+            <Inbox size={20} color="#1A2A4A" />
+            {pendingCount > 0 ? (
+              <View className="absolute -right-1 -top-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-orange px-1">
+                <Text className="text-[10px] font-heading-black text-white">
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View className="flex-1">
+            <Text variant="body-medium">Propositions partenaires</Text>
+            <Text variant="caption" className="mt-0.5">
+              {subtitle}
+            </Text>
+          </View>
+          <ChevronRight size={16} color="#94A3B8" />
+        </View>
+      </Card>
+    </Pressable>
   );
 }
 
