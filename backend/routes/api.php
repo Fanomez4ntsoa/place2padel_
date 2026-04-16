@@ -16,6 +16,7 @@ use App\Modules\Club\Controllers\UnsubscribeClubController;
 use App\Modules\Tournament\Controllers\CreateTournamentController;
 use App\Modules\Tournament\Controllers\DeleteTournamentController;
 use App\Modules\Tournament\Controllers\ForMeTournamentsController;
+use App\Modules\Tournament\Controllers\MyTournamentsController;
 use App\Modules\Tournament\Controllers\LaunchTournamentController;
 use App\Modules\Tournament\Controllers\ListMatchesController;
 use App\Modules\Tournament\Controllers\ListPoolsController;
@@ -125,10 +126,14 @@ Route::prefix('v1')->group(function () {
             ->middleware('throttle:10,1')
             ->name('tournaments.destroy');
 
-        // IMPORTANT : `tournaments/for-me` (literal) AVANT `tournaments/{tournament}` wildcard (public).
+        // IMPORTANT : `tournaments/for-me` et `tournaments/mine` (literals) AVANT
+        // `tournaments/{tournament}` wildcard pour éviter le route-binding sur ces mots.
         Route::get('tournaments/for-me', ForMeTournamentsController::class)
             ->middleware('throttle:60,1')
             ->name('tournaments.for-me');
+        Route::get('tournaments/mine', MyTournamentsController::class)
+            ->middleware('throttle:60,1')
+            ->name('tournaments.mine');
 
         Route::post('tournaments/{tournament}/register', RegisterTeamController::class)
             ->middleware('throttle:20,1')

@@ -222,8 +222,8 @@ function CockpitPlayer({
           <ActionCard
             icon={Trophy}
             label="Mes tournois"
-            subtitle="Tous mes engagements"
-            onPress={() => router.push('/(tabs)/tournois')}
+            subtitle="Inscriptions + organisations"
+            onPress={() => router.push('/mes-tournois' as never)}
           />
           <ActionCard
             icon={QrCode}
@@ -237,9 +237,8 @@ function CockpitPlayer({
           <ActionCard
             icon={Heart}
             label="Partenaires"
-            subtitle="Matching — Phase 6.2"
-            onPress={() => undefined}
-            disabled
+            subtitle="Matching contextuel par tournoi"
+            onPress={() => router.push('/(tabs)/partenaires')}
           />
           <ActionCard
             icon={UserIcon}
@@ -470,8 +469,8 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
           <ActionCard
             icon={Trophy}
             label="Mes tournois"
-            subtitle="Tous mes tournois organisés"
-            onPress={() => router.push('/(tabs)/tournois')}
+            subtitle="Mes tournois organisés"
+            onPress={() => router.push('/mes-tournois' as never)}
           />
           <NotificationsActionCard onPress={() => router.push('/notifications' as never)} />
           <MessagesActionCard onPress={() => router.push('/conversations')} />
