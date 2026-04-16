@@ -1,4 +1,4 @@
-import { Calendar, MapPin, Users } from 'lucide-react-native';
+import { Calendar, CreditCard, MapPin, Users } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
@@ -50,6 +50,19 @@ function formatDateFR(iso: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+/**
+ * Parse le prix texte libre ("15€", "20€/équipe", "12,5€", "Gratuit") en euros float.
+ * Retourne null si pas de nombre > 0 (miroir du PriceParser backend).
+ */
+function parsePriceEuros(raw: string | null): number | null {
+  if (!raw) return null;
+  const normalized = raw.replace(',', '.');
+  const match = normalized.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const value = parseFloat(match[1]);
+  return value > 0 ? value : null;
+}
+
 export function TournamentCard({ tournament, onPress, delay = 0 }: Props) {
   const fade = useFadeInUp(delay);
   const status = STATUS_STYLES[tournament.status];
@@ -61,6 +74,9 @@ export function TournamentCard({ tournament, onPress, delay = 0 }: Props) {
   const locationLabel = tournament.location ?? tournament.club?.city ?? '';
   const placeLine =
     clubLabel && locationLabel ? `${clubLabel} — ${locationLabel}` : clubLabel || locationLabel;
+
+  const priceEuros = parsePriceEuros(tournament.price);
+  const isOnline = tournament.payment_method === 'online';
 
   return (
     <Animated.View style={fade}>
@@ -124,6 +140,22 @@ export function TournamentCard({ tournament, onPress, delay = 0 }: Props) {
             <Text variant="caption" className="text-[11px] capitalize">
               {tournament.type}
             </Text>
+          ) : null}
+
+          {priceEuros !== null ? (
+            <View
+              className={`flex-row items-center gap-1 rounded-full px-2 py-0.5 ${
+                isOnline ? 'bg-brand-orange-light' : 'bg-slate-100'
+              }`}
+            >
+              <CreditCard size={11} color={isOnline ? '#E8650A' : '#64748B'} />
+              <Text
+                variant="caption"
+                className={`text-[10px] font-heading ${isOnline ? 'text-brand-orange' : 'text-brand-navy'}`}
+              >
+                {priceEuros.toFixed(0)}€
+              </Text>
+            </View>
           ) : null}
         </View>
 

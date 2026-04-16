@@ -29,7 +29,7 @@ export function AppHeader() {
     >
       <View className="h-12 flex-row items-center">
         {/* Wordmark */}
-        <Pressable onPress={() => router.push('/(tabs)/home')} hitSlop={6}>
+        <Pressable onPress={() => router.push('/(tabs)/home' as never)} hitSlop={6}>
           <Text variant="h3" className="text-[18px] text-brand-navy font-heading-black">
             Place<Text className="text-brand-orange font-heading-black">To</Text>Padel
           </Text>
