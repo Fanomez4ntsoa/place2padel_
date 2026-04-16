@@ -1,5 +1,5 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Building2, LayoutGrid, Newspaper, Trophy, Users } from 'lucide-react-native';
+import { LayoutGrid, Newspaper, Swords, Trophy, Users } from 'lucide-react-native';
 import { ComponentType } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,8 +7,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/design-system';
 
 /**
- * Port fidèle de placeToPadel/src/components/BottomNav.js.
+ * Port fidèle de placeToPadel/src/components/BottomNav.js (39b6544).
  * Navy #1A2A4A, border-top orange 1.5px, Cockpit center surélevé (-28px) en carré orange 48x48.
+ *
+ * Décision Emergent 39b6544 : Clubs sort de la navbar, remplacé par "Match"
+ * (icône Swords) entre Cockpit et Partenaires. Clubs reste accessible via
+ * routes (/clubs, /clubs/[id]) mais masqué dans la tab bar.
  */
 
 type IconCmp = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -17,8 +21,8 @@ const ITEMS: { name: string; label: string; icon: IconCmp; center?: boolean }[] 
   { name: 'actualites', label: 'Actu', icon: Newspaper },
   { name: 'tournois/index', label: 'Tournois', icon: Trophy },
   { name: 'cockpit', label: 'Cockpit', icon: LayoutGrid, center: true },
+  { name: 'match/index', label: 'Match', icon: Swords },
   { name: 'partenaires', label: 'Partenaires', icon: Users },
-  { name: 'clubs', label: 'Clubs', icon: Building2 },
 ];
 
 export function BottomTabBar({ state, navigation }: BottomTabBarProps) {

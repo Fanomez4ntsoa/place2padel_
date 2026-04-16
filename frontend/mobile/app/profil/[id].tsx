@@ -14,9 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EloCard } from '@/components/friendly-matches/EloCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Input, Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
+import type { MatchHistoryEntry } from '@/features/friendly-matches/types';
+import { useMatchHistory, useUserElo } from '@/features/friendly-matches/useFriendlyMatches';
 import { useProfile, useUpdateProfile } from '@/features/profile/useProfile';
 
 const DAY_LABELS = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -38,6 +41,9 @@ export default function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
+  const [tab, setTab] = useState<'infos' | 'matchs'>('infos');
+  const eloQuery = useUserElo(id);
+  const historyQuery = useMatchHistory(id);
 
   useEffect(() => {
     if (profile) {
@@ -129,56 +135,106 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
-        {/* Stats — grille 4 colonnes (port d541157) */}
-        <View className="mx-5 mt-4 flex-row gap-2">
-          <StatCell value={profile.padel_points ?? 0} label="Points" sub="FFT" />
-          <StatCell value={profile.ranking ?? '—'} label="Rang" />
-          <StatCell value={profile.padel_level ?? '—'} label="Niveau" />
-          <StatCell
-            value={POSITION_LABELS[profile.profile?.position ?? ''] ?? '—'}
-            label="Position"
-          />
+        {/* Switch Infos / Matchs */}
+        <View className="mx-5 mt-4 flex-row rounded-2xl border border-brand-border bg-white p-1">
+          {(['infos', 'matchs'] as const).map((k) => {
+            const active = tab === k;
+            return (
+              <Pressable
+                key={k}
+                onPress={() => setTab(k)}
+                className={`flex-1 items-center rounded-xl py-2 ${active ? 'bg-brand-navy' : ''}`}
+              >
+                <Text
+                  variant="caption"
+                  className={`text-[12px] font-heading ${active ? 'text-white' : 'text-brand-muted'}`}
+                >
+                  {k === 'infos' ? 'Infos' : 'Matchs'}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* Bio */}
-        {profile.profile?.bio ? (
-          <View className="mx-5 mt-4">
-            <Card>
-              <Text variant="h3" className="text-[15px]">À propos</Text>
-              <Text variant="body" className="mt-2">
-                {profile.profile.bio}
-              </Text>
-            </Card>
-          </View>
-        ) : null}
+        {tab === 'infos' ? (
+          <>
+            {/* Stats — grille 4 colonnes (port d541157) */}
+            <View className="mx-5 mt-4 flex-row gap-2">
+              <StatCell value={profile.padel_points ?? 0} label="Points" sub="FFT" />
+              <StatCell value={profile.ranking ?? '—'} label="Rang" />
+              <StatCell value={profile.padel_level ?? '—'} label="Niveau" />
+              <StatCell
+                value={POSITION_LABELS[profile.profile?.position ?? ''] ?? '—'}
+                label="Position"
+              />
+            </View>
 
-        {/* Niveaux préférés */}
-        {profile.preferred_levels && profile.preferred_levels.length > 0 ? (
-          <View className="mx-5 mt-4">
-            <Card>
-              <Text variant="h3" className="text-[15px]">Niveaux préférés</Text>
-              <View className="mt-2 flex-row flex-wrap gap-2">
-                {profile.preferred_levels.map((lvl) => (
-                  <Badge key={lvl} label={lvl} tone="info" />
-                ))}
+            {/* Bio */}
+            {profile.profile?.bio ? (
+              <View className="mx-5 mt-4">
+                <Card>
+                  <Text variant="h3" className="text-[15px]">À propos</Text>
+                  <Text variant="body" className="mt-2">
+                    {profile.profile.bio}
+                  </Text>
+                </Card>
               </View>
-            </Card>
-          </View>
-        ) : null}
+            ) : null}
 
-        {/* Disponibilités */}
-        {profile.availabilities && profile.availabilities.length > 0 ? (
-          <View className="mx-5 mt-4">
-            <Card>
-              <Text variant="h3" className="text-[15px]">Disponibilités</Text>
-              <View className="mt-2 flex-row flex-wrap gap-2">
-                {profile.availabilities.map((d) => (
-                  <Badge key={d} label={DAY_LABELS[d] ?? String(d)} tone="neutral" />
-                ))}
+            {/* Niveaux préférés */}
+            {profile.preferred_levels && profile.preferred_levels.length > 0 ? (
+              <View className="mx-5 mt-4">
+                <Card>
+                  <Text variant="h3" className="text-[15px]">Niveaux préférés</Text>
+                  <View className="mt-2 flex-row flex-wrap gap-2">
+                    {profile.preferred_levels.map((lvl) => (
+                      <Badge key={lvl} label={lvl} tone="info" />
+                    ))}
+                  </View>
+                </Card>
               </View>
-            </Card>
+            ) : null}
+
+            {/* Disponibilités */}
+            {profile.availabilities && profile.availabilities.length > 0 ? (
+              <View className="mx-5 mt-4">
+                <Card>
+                  <Text variant="h3" className="text-[15px]">Disponibilités</Text>
+                  <View className="mt-2 flex-row flex-wrap gap-2">
+                    {profile.availabilities.map((d) => (
+                      <Badge key={d} label={DAY_LABELS[d] ?? String(d)} tone="neutral" />
+                    ))}
+                  </View>
+                </Card>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <View className="mx-5 mt-4 gap-4">
+            {eloQuery.data ? <EloCard elo={eloQuery.data} /> : (
+              <Card><ActivityIndicator color="#E8650A" /></Card>
+            )}
+
+            <View>
+              <Text variant="h3" className="mb-2 text-[15px]">Historique</Text>
+              {historyQuery.isLoading ? (
+                <ActivityIndicator color="#E8650A" />
+              ) : !historyQuery.data || historyQuery.data.length === 0 ? (
+                <Card>
+                  <Text variant="caption" className="text-center">
+                    Aucun match joué pour l'instant.
+                  </Text>
+                </Card>
+              ) : (
+                <View className="gap-2">
+                  {historyQuery.data.map((entry) => (
+                    <HistoryRow key={entry.match_uuid} entry={entry} />
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
-        ) : null}
+        )}
       </ScrollView>
 
       {/* Modal édition simple (bio + ville) */}
@@ -238,6 +294,33 @@ function StatCell({ value, label, sub }: { value: string | number; label: string
       <Text variant="h3" className="text-[18px] text-brand-navy">{value}</Text>
       <Text variant="caption" className="text-[9px]">{label}</Text>
       {sub ? <Text variant="caption" className="text-[9px] text-brand-muted">{sub}</Text> : null}
+    </View>
+  );
+}
+
+function HistoryRow({ entry }: { entry: MatchHistoryEntry }) {
+  const won = entry.result === 'win';
+  const date = new Date(entry.date);
+  return (
+    <View className="flex-row items-center gap-3 rounded-2xl border border-brand-border bg-white px-4 py-3">
+      <View
+        className={`h-10 w-10 items-center justify-center rounded-2xl ${won ? 'bg-emerald-50' : 'bg-red-50'}`}
+      >
+        <Text className={`font-heading-black text-[15px] ${won ? 'text-emerald-700' : 'text-red-500'}`}>
+          {won ? 'V' : 'D'}
+        </Text>
+      </View>
+      <View className="flex-1">
+        <Text variant="body-medium" className="text-[13px]">
+          {entry.type === 'friendly' ? 'Match amical' : 'Tournoi'}
+        </Text>
+        <Text variant="caption" className="mt-0.5 text-[11px]">
+          {date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+        </Text>
+      </View>
+      <Text variant="body-medium" className="text-[13px]" style={{ fontVariant: ['tabular-nums'] }}>
+        {entry.score.team1_games}–{entry.score.team2_games}
+      </Text>
     </View>
   );
 }

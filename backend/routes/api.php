@@ -231,6 +231,49 @@ Route::prefix('v1')->group(function () {
         Route::delete('comments/{comment}', DeleteCommentController::class)
             ->middleware('throttle:30,1')
             ->name('posts.comments.destroy');
+
+        // FriendlyMatch Phase 6.2 G7 — 9 endpoints authentifiés.
+        Route::post('friendly-matches', \App\Modules\FriendlyMatch\Controllers\CreateFriendlyMatchController::class)
+            ->middleware('throttle:30,1')
+            ->name('friendly-matches.store');
+        Route::get('friendly-matches/my', \App\Modules\FriendlyMatch\Controllers\MyFriendlyMatchesController::class)
+            ->middleware('throttle:60,1')
+            ->name('friendly-matches.my');
+        Route::get('friendly-matches/{friendlyMatch}', \App\Modules\FriendlyMatch\Controllers\ShowFriendlyMatchController::class)
+            ->middleware('throttle:120,1')
+            ->name('friendly-matches.show');
+        Route::put('friendly-matches/{friendlyMatch}/accept', \App\Modules\FriendlyMatch\Controllers\AcceptFriendlyMatchController::class)
+            ->middleware('throttle:30,1')
+            ->name('friendly-matches.accept');
+        Route::delete('friendly-matches/{friendlyMatch}/accept', \App\Modules\FriendlyMatch\Controllers\DeclineFriendlyMatchController::class)
+            ->middleware('throttle:30,1')
+            ->name('friendly-matches.decline');
+        Route::put('friendly-matches/{friendlyMatch}/start', \App\Modules\FriendlyMatch\Controllers\StartFriendlyMatchController::class)
+            ->middleware('throttle:30,1')
+            ->name('friendly-matches.start');
+        Route::put('friendly-matches/{friendlyMatch}/score', \App\Modules\FriendlyMatch\Controllers\UpdateFriendlyScoreController::class)
+            ->middleware('throttle:120,1')
+            ->name('friendly-matches.score');
+        Route::put('friendly-matches/{friendlyMatch}/validate', \App\Modules\FriendlyMatch\Controllers\ValidateFriendlyMatchController::class)
+            ->middleware('throttle:30,1')
+            ->name('friendly-matches.validate');
+        Route::post('friendly-matches/{friendlyMatch}/result-photo', \App\Modules\FriendlyMatch\Controllers\UploadResultPhotoController::class)
+            ->middleware('throttle:10,1')
+            ->name('friendly-matches.result-photo');
+
+        // ELO + leaderboards — 3 endpoints.
+        Route::get('users/{user}/elo', \App\Modules\FriendlyMatch\Controllers\ShowUserEloController::class)
+            ->middleware('throttle:120,1')
+            ->name('users.elo');
+        Route::get('users/{user}/match-history', \App\Modules\FriendlyMatch\Controllers\MatchHistoryController::class)
+            ->middleware('throttle:120,1')
+            ->name('users.match-history');
+        Route::get('leaderboard/friends', [\App\Modules\FriendlyMatch\Controllers\LeaderboardController::class, 'friends'])
+            ->middleware('throttle:60,1')
+            ->name('leaderboard.friends');
+        Route::get('leaderboard/club', [\App\Modules\FriendlyMatch\Controllers\LeaderboardController::class, 'club'])
+            ->middleware('throttle:60,1')
+            ->name('leaderboard.club');
     });
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
