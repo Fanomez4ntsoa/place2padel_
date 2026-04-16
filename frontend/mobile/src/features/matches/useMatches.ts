@@ -10,6 +10,8 @@ import type {
 
 /**
  * GET /tournaments/{uuid}/matches — liste complète ordonnée (round, match_number, id).
+ * Polling 10s pour capturer les transitions pending→in_progress→completed
+ * déclenchées par d'autres joueurs (badge LIVE, score live, validations).
  */
 export function useTournamentMatches(tournamentUuid: string | undefined) {
   return useQuery<TournamentMatch[]>({
@@ -19,7 +21,8 @@ export function useTournamentMatches(tournamentUuid: string | undefined) {
       const { data } = await api.get(`/tournaments/${tournamentUuid}/matches`);
       return (data?.data ?? []) as TournamentMatch[];
     },
-    staleTime: 15_000,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
   });
 }
 

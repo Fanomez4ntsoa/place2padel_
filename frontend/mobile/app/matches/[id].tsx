@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Check, Flag, Minus, Plus } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text } from '@/design-system';
@@ -160,7 +166,7 @@ export default function MatchLiveScreen() {
           </View>
           {match.status === 'in_progress' ? (
             <View className="flex-row items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1">
-              <View className="h-2 w-2 rounded-full bg-red-500" />
+              <PulseDot />
               <Text variant="caption" className="text-[10px] font-heading-black uppercase text-red-500">
                 LIVE
               </Text>
@@ -484,6 +490,20 @@ function TiebreakInput({
 
 // ─────────────────────────────────────────────────────────────
 
+function PulseDot() {
+  const opacity = useSharedValue(1);
+  useEffect(() => {
+    opacity.value = withRepeat(withTiming(0.3, { duration: 700 }), -1, true);
+  }, [opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return (
+    <Animated.View
+      style={style}
+      className="h-2 w-2 rounded-full bg-red-500"
+    />
+  );
+}
+
 interface Permissions {
   canScore: boolean;
   canValidateTeam1: boolean;
@@ -516,8 +536,12 @@ function computePermissions(
   const isCaptain2 = team2?.captain.uuid === userUuid;
   const isOwner = tournament.creator?.uuid === userUuid;
 
+  // canScore : STRICTEMENT membre d'une des 2 équipes (captain ou partenaire).
+  // Le owner NON-participant ne peut pas saisir le score — aligné avec le backend
+  // UpdateMatchScoreController qui n'autorise que captain_id/partner_id des 2 teams.
+  // L'organisateur a le droit de forfait (canForfeit), pas le score.
   return {
-    canScore: inTeam1 || inTeam2 || isOwner,
+    canScore: inTeam1 || inTeam2,
     canValidateTeam1: isCaptain1,
     canValidateTeam2: isCaptain2,
     canForfeit: isOwner,
