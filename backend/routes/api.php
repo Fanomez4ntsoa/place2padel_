@@ -274,6 +274,24 @@ Route::prefix('v1')->group(function () {
         Route::get('leaderboard/club', [\App\Modules\FriendlyMatch\Controllers\LeaderboardController::class, 'club'])
             ->middleware('throttle:60,1')
             ->name('leaderboard.club');
+
+        // GameProposal Phase 6.2 G8 — 5 endpoints.
+        // IMPORTANT : /my (literal) déclaré AVANT /{gameProposal} pour éviter le conflit de binding.
+        Route::get('game-proposals/my', \App\Modules\GameProposal\Controllers\MyGameProposalsController::class)
+            ->middleware('throttle:60,1')
+            ->name('game-proposals.my');
+        Route::post('game-proposals', \App\Modules\GameProposal\Controllers\CreateGameProposalController::class)
+            ->middleware('throttle:30,1')
+            ->name('game-proposals.store');
+        Route::put('game-proposals/{gameProposal}/respond', \App\Modules\GameProposal\Controllers\RespondGameProposalController::class)
+            ->middleware('throttle:30,1')
+            ->name('game-proposals.respond');
+        Route::delete('game-proposals/{gameProposal}', \App\Modules\GameProposal\Controllers\CancelGameProposalController::class)
+            ->middleware('throttle:30,1')
+            ->name('game-proposals.cancel');
+        Route::post('game-proposals/{gameProposal}/start', \App\Modules\GameProposal\Controllers\StartGameProposalController::class)
+            ->middleware('throttle:30,1')
+            ->name('game-proposals.start');
     });
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
