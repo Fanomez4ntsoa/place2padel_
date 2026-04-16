@@ -292,7 +292,20 @@ Route::prefix('v1')->group(function () {
         Route::post('game-proposals/{gameProposal}/start', \App\Modules\GameProposal\Controllers\StartGameProposalController::class)
             ->middleware('throttle:30,1')
             ->name('game-proposals.start');
+
+        // Stripe Phase 6.2 G9 — paiement par tournoi (user authentifié).
+        Route::post('payments/checkout/create', \App\Modules\Payment\Controllers\CreateCheckoutSessionController::class)
+            ->middleware('throttle:10,1')
+            ->name('payments.checkout.create');
+        Route::get('payments/checkout/status/{sessionId}', \App\Modules\Payment\Controllers\CheckoutStatusController::class)
+            ->middleware('throttle:60,1')
+            ->name('payments.checkout.status');
     });
+
+    // Stripe webhook — PUBLIC, signature vérifiée dans le controller.
+    Route::post('webhook/stripe', \App\Modules\Payment\Controllers\StripeWebhookController::class)
+        ->middleware('throttle:120,1')
+        ->name('webhook.stripe');
 
     // Auth optionnelle — le controller gère la projection selon le viewer.
     Route::get('profile/{user}', ShowProfileController::class)

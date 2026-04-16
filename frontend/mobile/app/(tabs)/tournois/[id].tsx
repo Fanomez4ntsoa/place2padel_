@@ -10,7 +10,7 @@ import {
   UserX,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Tabs } from '@/components/common/Tabs';
@@ -18,6 +18,7 @@ import { TournamentDetailSkeleton } from '@/components/tournois/TournamentListSk
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
+import { useCheckoutStatus, useCreateCheckout } from '@/features/payments/usePayments';
 import type { TournamentStatus } from '@/features/tournaments/types';
 import {
   useRegisterTeam,
@@ -76,7 +77,27 @@ export default function TournamentDetailScreen() {
   );
   const isSeeking = !!seekingQuery.data?.data?.some((s) => s.user.uuid === user?.uuid);
 
+  const createCheckoutMut = useCreateCheckout();
+  const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
+
   const handleRegister = async () => {
+    // Si tournoi online payant → Stripe Checkout.
+    if (tournament && tournament.payment_method === 'online' && tournament.price) {
+      try {
+        const checkout = await createCheckoutMut.mutateAsync(tournament.uuid);
+        if (!checkout.checkout_url) {
+          Alert.alert('Erreur', 'URL Stripe indisponible.');
+          return;
+        }
+        setCheckoutSessionId(checkout.session_id);
+        await Linking.openURL(checkout.checkout_url);
+      } catch (err) {
+        Alert.alert('Erreur', formatApiError(err));
+      }
+      return;
+    }
+
+    // Sinon on_site ou gratuit → inscription directe.
     try {
       await registerMut.mutateAsync(undefined);
       await refetch();
@@ -194,11 +215,13 @@ export default function TournamentDetailScreen() {
             status={tournament.status}
             isAuthenticated={!!user}
             isRegistered={isRegistered}
-            registering={registerMut.isPending}
+            registering={registerMut.isPending || createCheckoutMut.isPending}
             unregistering={unregisterMut.isPending}
             onLogin={() => router.push('/(auth)/login')}
             onRegister={handleRegister}
             onUnregister={handleUnregister}
+            paymentMethod={tournament.payment_method}
+            price={tournament.price}
           />
         </View>
 
@@ -323,7 +346,93 @@ export default function TournamentDetailScreen() {
           ) : null}
         </View>
       </ScrollView>
+
+      <CheckoutPollingOverlay
+        sessionId={checkoutSessionId}
+        onClose={() => setCheckoutSessionId(null)}
+        onPaid={async () => {
+          await refetch();
+          setCheckoutSessionId(null);
+          Alert.alert('Paiement confirmé', 'Tu es inscrit au tournoi !');
+        }}
+      />
     </SafeAreaView>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────
+// Polling overlay — après retour Stripe, poll /checkout/status/{id}
+// ───────────────────────────────────────────────────────────────
+
+function CheckoutPollingOverlay({
+  sessionId,
+  onClose,
+  onPaid,
+}: {
+  sessionId: string | null;
+  onClose: () => void;
+  onPaid: () => void;
+}) {
+  const statusQuery = useCheckoutStatus(sessionId);
+  const [paidHandled, setPaidHandled] = useState(false);
+
+  if (!sessionId) return null;
+
+  const status = statusQuery.data?.status;
+  const isPaid = status === 'paid';
+  const isFailed = status === 'failed' || status === 'expired' || status === 'cancelled';
+
+  if (isPaid && !paidHandled) {
+    setPaidHandled(true);
+    onPaid();
+  }
+
+  return (
+    <View className="absolute inset-0 items-center justify-center bg-black/60 px-8">
+      <View className="w-full max-w-[320px] items-center rounded-3xl bg-white p-6">
+        {isFailed ? (
+          <>
+            <Text className="text-[32px]">❌</Text>
+            <Text variant="h3" className="mt-3 text-center text-[16px]">
+              Paiement annulé
+            </Text>
+            <Text variant="caption" className="mt-2 text-center">
+              Aucun débit n'a été effectué.
+            </Text>
+            <Pressable
+              onPress={onClose}
+              className="mt-4 rounded-2xl bg-brand-navy px-5 py-2.5"
+            >
+              <Text className="font-heading-black text-[13px] text-white">Fermer</Text>
+            </Pressable>
+          </>
+        ) : isPaid ? (
+          <>
+            <Text className="text-[32px]">✅</Text>
+            <Text variant="h3" className="mt-3 text-[16px]">Paiement confirmé</Text>
+            <Text variant="caption" className="mt-1 text-center">
+              Inscription en cours...
+            </Text>
+          </>
+        ) : (
+          <>
+            <ActivityIndicator color="#E8650A" size="large" />
+            <Text variant="h3" className="mt-4 text-center text-[15px]">
+              Vérification du paiement…
+            </Text>
+            <Text variant="caption" className="mt-2 text-center">
+              Si tu as fini sur Stripe, reviens ici. Sinon, utilise le lien reçu par email.
+            </Text>
+            <Pressable
+              onPress={onClose}
+              className="mt-4 rounded-2xl border border-brand-border bg-white px-5 py-2.5"
+            >
+              <Text variant="caption" className="text-[12px] font-heading">Annuler la vérification</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -336,6 +445,8 @@ interface CtaProps {
   onLogin: () => void;
   onRegister: () => void;
   onUnregister: () => void;
+  paymentMethod: 'on_site' | 'online';
+  price: string | null;
 }
 
 function TournamentCta({
@@ -347,6 +458,8 @@ function TournamentCta({
   onLogin,
   onRegister,
   onUnregister,
+  paymentMethod,
+  price,
 }: CtaProps) {
   if (status === 'in_progress' || status === 'completed') {
     return null;
@@ -391,12 +504,22 @@ function TournamentCta({
     );
   }
 
+  const priceLabel = paymentMethod === 'online' && price ? ` — ${price}` : '';
   return (
-    <Button
-      label="S'inscrire"
-      loading={registering}
-      onPress={onRegister}
-      leftIcon={<UserPlus size={18} color="#FFFFFF" />}
-    />
+    <View className="gap-2">
+      <Button
+        label={`S'inscrire${priceLabel}`}
+        loading={registering}
+        onPress={onRegister}
+        leftIcon={<UserPlus size={18} color="#FFFFFF" />}
+      />
+      {paymentMethod === 'online' ? (
+        <View className="items-center">
+          <Text variant="caption" className="text-[11px]">
+            🔒 Paiement sécurisé via Stripe
+          </Text>
+        </View>
+      ) : null}
+    </View>
   );
 }

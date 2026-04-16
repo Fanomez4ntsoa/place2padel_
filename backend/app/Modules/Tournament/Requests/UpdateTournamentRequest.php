@@ -35,6 +35,7 @@ class UpdateTournamentRequest extends FormRequest
             'courts_available' => ['sometimes', 'integer', 'min:1', 'max:20'],
 
             'price' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'payment_method' => ['sometimes', 'nullable', 'in:on_site,online'],
         ];
     }
 

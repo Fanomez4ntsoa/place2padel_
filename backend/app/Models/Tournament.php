@@ -29,6 +29,7 @@ class Tournament extends Model
         'max_teams',
         'courts_available',
         'price',
+        'payment_method',
         'share_link',
         'status',
         'launched_at',

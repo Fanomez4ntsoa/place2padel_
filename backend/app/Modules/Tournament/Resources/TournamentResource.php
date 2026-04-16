@@ -23,6 +23,7 @@ class TournamentResource extends JsonResource
             'max_teams' => $this->max_teams,
             'courts_available' => $this->courts_available,
             'price' => $this->price,
+            'payment_method' => $this->payment_method,
             'share_link' => $this->share_link,
             'status' => $this->status,
             'launched_at' => $this->launched_at,
