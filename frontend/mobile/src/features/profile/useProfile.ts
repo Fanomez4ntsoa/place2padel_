@@ -6,6 +6,15 @@ export interface ProfileClub {
   uuid: string;
   name: string;
   city: string;
+  priority?: number;
+}
+
+export type AvailabilityPeriod = 'morning' | 'afternoon' | 'evening' | 'all';
+
+/** Tuple backend. `day_of_week` null + `period: 'all'` = slot Flexible. */
+export interface AvailabilitySlot {
+  day_of_week: number | null;
+  period: AvailabilityPeriod;
 }
 
 export interface ProfilePayload {
@@ -21,9 +30,10 @@ export interface ProfilePayload {
   padel_level?: number | null;
   padel_points?: number | null;
   ranking?: number | null;
-  club?: ProfileClub | null;
+  /** Liste ordonnée par priority (1..3). Le principal est `clubs[0]`. */
+  clubs?: ProfileClub[];
   preferred_levels?: string[];
-  availabilities?: number[];
+  availabilities?: AvailabilitySlot[];
   profile?: {
     bio?: string | null;
     position?: 'left' | 'right' | 'both' | null;
@@ -43,9 +53,17 @@ export function useProfile(uuid: string | undefined) {
 }
 
 export interface UpdateProfileBody {
-  bio?: string;
-  city?: string;
-  position?: 'left' | 'right' | 'both';
+  first_name?: string;
+  last_name?: string;
+  bio?: string | null;
+  city?: string | null;
+  position?: 'left' | 'right' | 'both' | null;
+  padel_level?: number | null;
+  /** Array d'UUIDs clubs, ordre = priority. Max 3. Vide = aucun club. */
+  clubs?: string[];
+  /** Array de tuples. `{day_of_week: null, period: 'all'}` = Flexible. Max 10. */
+  availabilities?: AvailabilitySlot[];
+  preferred_levels?: string[];
 }
 
 export function useUpdateProfile(uuid: string | undefined) {
@@ -57,6 +75,27 @@ export function useUpdateProfile(uuid: string | undefined) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile', uuid] });
+      // /me exposé via AuthContext peut contenir clubs[0] → refresh si nécessaire.
     },
   });
+}
+
+/**
+ * Helper — retourne le nom du club principal (priority 1) ou null.
+ * Remplace l'ancien `user.club?.name` après migration multi-clubs.
+ */
+export function primaryClubName(
+  user: Pick<ProfilePayload, 'clubs'> | { clubs?: ProfileClub[] | null } | null | undefined,
+): string | null {
+  if (!user?.clubs || user.clubs.length === 0) return null;
+  const sorted = [...user.clubs].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+  return sorted[0]?.name ?? null;
+}
+
+export function primaryClub(
+  user: { clubs?: ProfileClub[] | null } | null | undefined,
+): ProfileClub | null {
+  if (!user?.clubs || user.clubs.length === 0) return null;
+  const sorted = [...user.clubs].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+  return sorted[0] ?? null;
 }

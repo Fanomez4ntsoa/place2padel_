@@ -113,9 +113,9 @@ export function UserPickerModal({ visible, title, excludeUuids = [], onPick, onC
                     <Text variant="body-medium" className="text-[13px]" numberOfLines={1}>
                       {u.name}
                     </Text>
-                    {u.club ? (
+                    {u.clubs && u.clubs.length > 0 ? (
                       <Text variant="caption" className="mt-0.5 text-[11px]" numberOfLines={1}>
-                        {u.club.name} · {u.club.city}
+                        {u.clubs[0].name} · {u.clubs[0].city}
                       </Text>
                     ) : null}
                   </View>
