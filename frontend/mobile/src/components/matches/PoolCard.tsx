@@ -45,13 +45,13 @@ export function PoolCard({ pool }: Props) {
             {s.team_name}
           </Text>
           <Text variant="body" className="w-8 text-center text-[13px]">
-            {s.wins}
+            {s.won}
           </Text>
           <Text variant="body" className="w-8 text-center text-[13px]">
-            {s.losses}
+            {s.lost}
           </Text>
           <Text variant="body-medium" className="w-10 text-center text-[13px]">
-            {s.team_points}
+            {s.points}
           </Text>
         </View>
       ))}

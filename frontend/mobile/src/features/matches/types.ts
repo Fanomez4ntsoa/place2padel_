@@ -36,9 +36,13 @@ export interface PoolStanding {
   team_id: number;
   team_name: string;
   seed: number | null;
-  wins: number;
-  losses: number;
-  team_points: number;
+  played: number;
+  won: number;
+  lost: number;
+  games_for: number;
+  games_against: number;
+  game_diff: number;
+  points: number;
 }
 
 export interface Pool {
