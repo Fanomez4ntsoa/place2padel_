@@ -27,6 +27,43 @@ export interface TournamentDetail extends TournamentSummary {
   creator?: { uuid: string; name: string };
 }
 
+/**
+ * POST /tournaments — création via wizard Referee/Admin.
+ * Contrat backend StoreTournamentRequest (Laravel) :
+ *   club_uuid (UUID clubs.is_active=true), name (3-191), type, level,
+ *   date (Y-m-d, future), start_time (H:i optional), inscription_deadline
+ *   (nullable, <= date), max_teams (2-64), courts_available (1-20),
+ *   price (nullable, 50 chars max), payment_method (on_site|online).
+ */
+export interface CreateTournamentBody {
+  club_uuid: string;
+  name: string;
+  location?: string | null;
+  type: 'masculin' | 'feminin' | 'mixte' | 'open';
+  level: 'P25' | 'P50' | 'P100' | 'P250' | 'P500' | 'P1000' | 'P2000';
+  date: string; // YYYY-MM-DD
+  start_time?: string; // HH:MM
+  inscription_deadline?: string | null;
+  max_teams: number;
+  courts_available?: number;
+  price?: string | null;
+  payment_method?: 'on_site' | 'online' | null;
+}
+
+export function useCreateTournament() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CreateTournamentBody) => {
+      const { data } = await api.post('/tournaments', body);
+      return data.data as TournamentSummary;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournaments'] });
+      qc.invalidateQueries({ queryKey: ['tournaments', 'mine'] });
+    },
+  });
+}
+
 export function useTournament(uuid: string | undefined) {
   return useQuery<TournamentDetail>({
     queryKey: ['tournament', uuid],
