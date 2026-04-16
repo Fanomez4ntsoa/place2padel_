@@ -212,21 +212,24 @@ export default function TournamentDetailScreen() {
           </Card>
         </View>
 
-        {/* CTA */}
-        <View className="mx-4 mt-3">
-          <TournamentCta
-            status={tournament.status}
-            isAuthenticated={!!user}
-            isRegistered={isRegistered}
-            registering={registerMut.isPending || createCheckoutMut.isPending}
-            unregistering={unregisterMut.isPending}
-            onLogin={() => router.push('/(auth)/login')}
-            onRegister={handleRegister}
-            onUnregister={handleUnregister}
-            paymentMethod={tournament.payment_method}
-            price={tournament.price}
-          />
-        </View>
+        {/* CTA inscription — masqué pour l'organisateur (il ne s'inscrit pas à son
+            propre tournoi) et pour les referees (ne jouent pas). */}
+        {tournament.creator?.uuid !== user?.uuid && user?.role !== 'referee' ? (
+          <View className="mx-4 mt-3">
+            <TournamentCta
+              status={tournament.status}
+              isAuthenticated={!!user}
+              isRegistered={isRegistered}
+              registering={registerMut.isPending || createCheckoutMut.isPending}
+              unregistering={unregisterMut.isPending}
+              onLogin={() => router.push('/(auth)/login')}
+              onRegister={handleRegister}
+              onUnregister={handleUnregister}
+              paymentMethod={tournament.payment_method}
+              price={tournament.price}
+            />
+          </View>
+        ) : null}
 
         {/* Lancer — owner only, status open/full, min 2 équipes */}
         {tournament.creator?.uuid === user?.uuid &&

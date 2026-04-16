@@ -4,6 +4,23 @@ Items différés à traiter après les phases en cours. Format : priorité, cont
 
 ---
 
+## ✅ [Résolu] CTA "S'inscrire" masqué pour creator + referee
+
+**Contexte** — Bug identifié au test émulateur : le bouton "S'inscrire" s'affichait pour l'organisateur d'un tournoi (qui ne s'inscrit pas à son propre tournoi) et pour les utilisateurs avec `role=referee` (ne jouent pas, organisent uniquement).
+
+**Fix** — Dans [app/(tabs)/tournois/[id].tsx](frontend/mobile/app/(tabs)/tournois/[id].tsx) : le bloc `<TournamentCta>` est wrappé par une condition :
+```tsx
+{tournament.creator?.uuid !== user?.uuid && user?.role !== 'referee' ? (
+  <TournamentCta ... />
+) : null}
+```
+
+**Impact** — Bouton "Lancer le tournoi" reste visible pour le creator (logique séparée, conditions distinctes). Bouton "S'inscrire / Se désinscrire" uniquement pour les joueurs non-créateurs.
+
+**Statut** ✅ Résolu — commit à venir
+
+---
+
 ## 🟡 Stripe — Page de retour post-paiement
 
 **Contexte**
