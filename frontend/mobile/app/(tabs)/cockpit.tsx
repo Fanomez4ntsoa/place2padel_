@@ -85,6 +85,7 @@ export default function CockpitScreen() {
     <CockpitPlayer
       name={user.first_name ?? user.name}
       userUuid={user.uuid}
+      role={user.role}
       padelPoints={(user as unknown as { profile?: { padel_points?: number } }).profile?.padel_points}
       onLogout={handleLogout}
     />
@@ -181,16 +182,21 @@ function RoleCard({
 function CockpitPlayer({
   name,
   userUuid,
+  role,
   padelPoints,
   onLogout,
 }: {
   name?: string;
   userUuid: string;
+  role: 'player' | 'organizer' | 'referee' | 'admin';
   padelPoints?: number;
   onLogout: () => void;
 }) {
   const router = useRouter();
   const fade = useFadeInUp(0);
+
+  const canCreateTournament =
+    role === 'organizer' || role === 'referee' || role === 'admin';
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
@@ -225,6 +231,14 @@ function CockpitPlayer({
             subtitle="Inscriptions + organisations"
             onPress={() => router.push('/mes-tournois' as never)}
           />
+          {canCreateTournament ? (
+            <ActionCard
+              icon={Plus}
+              label="Créer un tournoi"
+              subtitle="En moins de 5 minutes"
+              onPress={() => router.push('/(tabs)/tournois/creer' as never)}
+            />
+          ) : null}
           <ActionCard
             icon={QrCode}
             label="Scanner un QR"
@@ -463,7 +477,7 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
           <Button
             label="Créer un tournoi"
             leftIcon={<Plus size={18} color="#FFFFFF" />}
-            onPress={() => Alert.alert('Bientôt', 'Création de tournoi arrive en Phase 6.2.')}
+            onPress={() => router.push('/(tabs)/tournois/creer' as never)}
           />
 
           <ActionCard

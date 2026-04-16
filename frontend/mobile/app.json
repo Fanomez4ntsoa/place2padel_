@@ -39,7 +39,8 @@
         {
           "cameraPermission": "PlaceToPadel a besoin d'accéder à la caméra pour scanner les QR codes de tournoi."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
