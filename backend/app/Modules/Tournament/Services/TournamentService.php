@@ -36,6 +36,7 @@ class TournamentService
                 'max_teams' => $data['max_teams'],
                 'courts_available' => $data['courts_available'] ?? 4,
                 'price' => $data['price'] ?? null,
+                'payment_method' => $data['payment_method'] ?? 'on_site',
                 'status' => 'open',
             ]);
 

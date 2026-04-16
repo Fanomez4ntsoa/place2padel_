@@ -24,6 +24,7 @@ export interface TournamentSummary {
   max_teams: number;
   courts_available: number;
   price: string | null;
+  payment_method: 'on_site' | 'online';
   share_link: string | null;
   status: TournamentStatus;
   launched_at: string | null;

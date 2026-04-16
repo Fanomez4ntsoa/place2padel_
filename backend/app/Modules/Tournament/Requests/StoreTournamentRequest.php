@@ -34,6 +34,7 @@ class StoreTournamentRequest extends FormRequest
             'courts_available' => ['sometimes', 'integer', 'min:1', 'max:20'],
 
             'price' => ['nullable', 'string', 'max:50'],
+            'payment_method' => ['nullable', 'in:on_site,online'],
         ];
     }
 
