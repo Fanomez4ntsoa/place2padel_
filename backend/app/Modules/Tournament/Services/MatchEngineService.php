@@ -157,15 +157,21 @@ class MatchEngineService
      * Barème : 2 pts victoire, 1 pt défaite (pas 0 — valorise la présence).
      * Tri : points DESC, game_diff DESC, games_for DESC.
      *
-     * @return list<array{team_id:int, played:int, won:int, lost:int, games_for:int, games_against:int, game_diff:int, points:int}>
+     * @return list<array{team_id:int, team_name:string, seed:?int, played:int, won:int, lost:int, games_for:int, games_against:int, game_diff:int, points:int}>
      */
     public function calculatePoolStandings(\App\Models\Pool $pool): array
     {
         $teamIds = $pool->team_ids ?? [];
+        $teams = \App\Models\TournamentTeam::whereIn('id', $teamIds)
+            ->get(['id', 'team_name', 'seed'])
+            ->keyBy('id');
         $standings = [];
         foreach ($teamIds as $id) {
+            $team = $teams->get($id);
             $standings[$id] = [
                 'team_id' => $id,
+                'team_name' => $team?->team_name ?? '',
+                'seed' => $team?->seed,
                 'played' => 0, 'won' => 0, 'lost' => 0,
                 'games_for' => 0, 'games_against' => 0,
                 'game_diff' => 0, 'points' => 0,

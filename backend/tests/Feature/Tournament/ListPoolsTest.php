@@ -83,4 +83,17 @@ class ListPoolsTest extends TestCase
         // Le winner est premier (tri points DESC).
         $this->assertSame($m->team1_id, $res->json('data.0.standings.0.team_id'));
     }
+
+    public function test_standings_expose_team_name_and_seed(): void
+    {
+        $t = $this->seedTournament(4);
+        $winner = TournamentTeam::where('tournament_id', $t->id)->first();
+
+        $res = $this->getJson("/api/v1/tournaments/{$t->uuid}/pools");
+
+        $row = collect($res->json('data.0.standings'))
+            ->firstWhere('team_id', $winner->id);
+        $this->assertSame($winner->team_name, $row['team_name']);
+        $this->assertSame($winner->seed, $row['seed']);
+    }
 }
