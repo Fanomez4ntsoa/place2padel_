@@ -152,6 +152,8 @@ export default function LoginScreen() {
               />
 
               {/* Séparateur "ou" */}
+              {/* Google OAuth — masqué jusqu'aux credentials Google (Phase 6.2 G5).
+                  Backend + Socialite restent en place côté serveur.
               <View className="my-5 flex-row items-center">
                 <View className="h-px flex-1 bg-brand-border" />
                 <Text variant="caption" className="mx-3">
@@ -159,8 +161,6 @@ export default function LoginScreen() {
                 </Text>
                 <View className="h-px flex-1 bg-brand-border" />
               </View>
-
-              {/* Google OAuth — Phase 6.2 */}
               <Button
                 label="Continuer avec Google"
                 variant="ghost"
@@ -170,6 +170,7 @@ export default function LoginScreen() {
               <Text variant="caption" className="mt-2 text-center">
                 Google OAuth disponible en Phase 6.2.
               </Text>
+              */}
 
               <View className="mt-5 flex-row items-center justify-center">
                 <Text variant="caption">Pas encore de compte ?</Text>
