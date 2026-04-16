@@ -14,8 +14,12 @@ export default function TabsLayout() {
       <Tabs.Screen name="tournois/[id]" options={{ href: null }} />
       <Tabs.Screen name="tournois/creer" options={{ href: null }} />
       <Tabs.Screen name="cockpit" options={{ title: 'Cockpit' }} />
+      {/* Match (Phase 6.2 G7) — remplace Clubs dans la navbar (Emergent 39b6544). */}
+      <Tabs.Screen name="match/index" options={{ title: 'Match' }} />
+      <Tabs.Screen name="match/[id]/live" options={{ href: null }} />
       <Tabs.Screen name="partenaires" options={{ title: 'Partenaires' }} />
-      <Tabs.Screen name="clubs" options={{ title: 'Clubs' }} />
+      {/* Clubs conservée en route mais masquée de la navbar (décision Emergent 39b6544). */}
+      <Tabs.Screen name="clubs" options={{ href: null }} />
     </Tabs>
   );
 }
