@@ -21,7 +21,7 @@ export function StubScreen({ title, hint, icon: Icon }: Props) {
   const router = useRouter();
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <View className="flex-1 items-center justify-center px-6">
         {Icon ? (
           <View className="mb-4 h-20 w-20 items-center justify-center rounded-3xl bg-brand-orange-light">

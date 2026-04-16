@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Place2Padel",
+    "name": "PlaceToPadel",
     "slug": "place2padel",
     "scheme": "place2padel",
     "version": "1.0.0",
@@ -33,7 +33,13 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Autorise PlaceToPadel à utiliser la caméra pour scanner les QR codes des tournois."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

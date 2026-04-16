@@ -6,6 +6,7 @@ import {
   Heart,
   LogOut,
   MessageCircle,
+  QrCode,
   TreePalm,
   Plus,
   Swords,
@@ -29,6 +30,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text, useFadeInUp } from '@/design-system';
 import { formatApiError } from '@/lib/api';
+import { useMySeekings, useProposals } from '@/features/partners/usePartners';
 import Animated from 'react-native-reanimated';
 
 type IconCmp = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -183,6 +185,9 @@ function CockpitPlayer({
 }) {
   const router = useRouter();
   const fade = useFadeInUp(0);
+  const mySeekings = useMySeekings();
+  const pendingReceived = useProposals('received', 'pending');
+  const pendingCount = pendingReceived.data?.meta.total ?? 0;
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
@@ -210,11 +215,51 @@ function CockpitPlayer({
 
         <Animated.View style={fade} className="-mt-6 gap-3 px-5">
           <VacationCard />
+
+          {/* Je suis seul — mes déclarations actives */}
+          {mySeekings.data && mySeekings.data.length > 0 ? (
+            <Card>
+              <View className="mb-2 flex-row items-center gap-2">
+                <Heart size={14} color="#E8650A" fill="#E8650A" />
+                <Text variant="caption" className="text-[11px] font-heading-black uppercase tracking-wider text-brand-orange">
+                  Je suis seul ({mySeekings.data.length})
+                </Text>
+              </View>
+              {mySeekings.data.slice(0, 3).map((s) => (
+                <Pressable
+                  key={s.tournament.uuid ?? s.created_at}
+                  onPress={() =>
+                    s.tournament.uuid &&
+                    router.push(`/(tabs)/tournois/${s.tournament.uuid}`)
+                  }
+                  className="border-b border-brand-border/50 py-2 last:border-b-0"
+                >
+                  <Text variant="body-medium" className="text-[13px]" numberOfLines={1}>
+                    {s.tournament.name ?? '—'}
+                  </Text>
+                  <Text variant="caption" className="mt-0.5 text-[11px]" numberOfLines={1}>
+                    {s.tournament.club?.name ?? 'Sans club'} · {s.tournament.level ?? '—'}
+                  </Text>
+                </Pressable>
+              ))}
+            </Card>
+          ) : null}
+
           <ActionCard
             icon={Trophy}
             label="Mes tournois"
             subtitle="Tous mes engagements"
             onPress={() => router.push('/(tabs)/tournois')}
+          />
+          <ActionCard
+            icon={Heart}
+            label="Propositions partenaires"
+            subtitle={
+              pendingCount > 0
+                ? `${pendingCount} proposition${pendingCount > 1 ? 's' : ''} en attente`
+                : 'Reçues et envoyées'
+            }
+            onPress={() => router.push('/proposals')}
           />
           <ActionCard
             icon={Bell}
@@ -226,16 +271,14 @@ function CockpitPlayer({
           <ActionCard
             icon={MessageCircle}
             label="Messages"
-            subtitle="Dispo dans une prochaine itération"
-            onPress={() => undefined}
-            disabled
+            subtitle="Conversations avec tes partenaires"
+            onPress={() => router.push('/conversations' as never)}
           />
           <ActionCard
-            icon={Heart}
-            label="Partenaires"
-            subtitle="Matching — Phase 6.2"
-            onPress={() => undefined}
-            disabled
+            icon={QrCode}
+            label="Scanner un QR"
+            subtitle="Rejoindre un tournoi par QR code"
+            onPress={() => router.push('/scan' as never)}
           />
           <ActionCard
             icon={UserIcon}
@@ -308,9 +351,14 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
           <ActionCard
             icon={MessageCircle}
             label="Messages"
-            subtitle="Dispo dans une prochaine itération"
-            onPress={() => undefined}
-            disabled
+            subtitle="Conversations avec tes partenaires"
+            onPress={() => router.push('/conversations' as never)}
+          />
+          <ActionCard
+            icon={QrCode}
+            label="Scanner un QR"
+            subtitle="Pointer sur un QR tournoi"
+            onPress={() => router.push('/scan' as never)}
           />
 
           <Button

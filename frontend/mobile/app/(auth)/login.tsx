@@ -84,7 +84,7 @@ export default function LoginScreen() {
             />
             <View className="absolute bottom-5 left-6">
               <Text variant="h1" className="text-white">
-                Place2Padel
+                PlaceToPadel
               </Text>
               <Text variant="caption" className="mt-1 text-white/70">
                 Connecte-toi pour continuer

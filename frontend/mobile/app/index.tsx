@@ -18,5 +18,5 @@ export default function IndexRedirect() {
     );
   }
 
-  return <Redirect href={user ? '/(tabs)/cockpit' : '/(auth)/login'} />;
+  return <Redirect href={user ? '/(tabs)/cockpit' : '/home'} />;
 }

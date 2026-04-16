@@ -38,6 +38,28 @@ export function useTournament(uuid: string | undefined) {
   });
 }
 
+/**
+ * POST /tournaments/{uuid}/launch — clôt les inscriptions, transition status
+ * → in_progress, génère les matchs en async (GenerateMatchesJob queue high).
+ * Autorisation : owner ou admin, min 2 équipes registered, status open/full.
+ */
+export function useLaunchTournament(uuid: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/tournaments/${uuid}/launch`);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournament', uuid] });
+      qc.invalidateQueries({ queryKey: ['tournaments'] });
+      qc.invalidateQueries({ queryKey: ['tournament-matches', uuid] });
+      qc.invalidateQueries({ queryKey: ['tournament-pools', uuid] });
+      qc.invalidateQueries({ queryKey: ['tournament-ranking', uuid] });
+    },
+  });
+}
+
 /** Inscription simple — sans partenaire (Phase 6.1). Backend accepte partner_uuid optionnel. */
 export function useRegisterTeam(uuid: string | undefined) {
   const qc = useQueryClient();
@@ -89,13 +111,18 @@ export function useSeekingPartners(uuid: string | undefined) {
 export function useToggleSeeking(uuid: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (seek: boolean) => {
-      if (seek) await api.post(`/tournaments/${uuid}/seeking-partner`);
-      else await api.delete(`/tournaments/${uuid}/seeking-partner`);
-      return seek;
+    mutationFn: async (payload: { seek: boolean; message?: string }) => {
+      if (payload.seek) {
+        const body = payload.message?.trim() ? { message: payload.message.trim() } : {};
+        await api.post(`/tournaments/${uuid}/seeking-partner`, body);
+      } else {
+        await api.delete(`/tournaments/${uuid}/seeking-partner`);
+      }
+      return payload.seek;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['seeking-partners', uuid] });
+      qc.invalidateQueries({ queryKey: ['my-seekings'] });
     },
   });
 }

@@ -16,6 +16,10 @@ export default function TabsLayout() {
       <Tabs.Screen name="cockpit" options={{ title: 'Cockpit' }} />
       <Tabs.Screen name="partenaires" options={{ title: 'Partenaires' }} />
       <Tabs.Screen name="clubs" options={{ title: 'Clubs' }} />
+      {/* Routes marketing partagées qui bénéficient du shell AppHeader + BottomTabBar
+          tout en restant invisibles dans la barre. */}
+      <Tabs.Screen name="home" options={{ href: null }} />
+      <Tabs.Screen name="matching" options={{ href: null }} />
     </Tabs>
   );
 }

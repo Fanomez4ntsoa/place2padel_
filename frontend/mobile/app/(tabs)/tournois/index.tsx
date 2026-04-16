@@ -109,7 +109,7 @@ export default function TournoisListScreen() {
   );
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <FlatList
         data={tournaments}
         keyExtractor={(t) => t.uuid}

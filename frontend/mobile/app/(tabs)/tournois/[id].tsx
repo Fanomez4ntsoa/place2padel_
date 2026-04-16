@@ -4,15 +4,27 @@ import {
   Calendar,
   Clock,
   MapPin,
+  QrCode,
   Trophy,
   UserPlus,
   Users,
   UserX,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { TournamentQrModal } from '@/components/tournois/TournamentQrModal';
 import { MatchRow } from '@/components/matches/MatchRow';
 import { PoolCard } from '@/components/matches/PoolCard';
 import { RankingList } from '@/components/matches/RankingList';
@@ -28,6 +40,7 @@ import {
 } from '@/features/matches/useMatches';
 import type { TournamentStatus } from '@/features/tournaments/types';
 import {
+  useLaunchTournament,
   useRegisterTeam,
   useSeekingPartners,
   useToggleSeeking,
@@ -62,6 +75,7 @@ export default function TournamentDetailScreen() {
   const seekingQuery = useSeekingPartners(id);
   const registerMut = useRegisterTeam(id);
   const unregisterMut = useUnregisterTeam(id);
+  const launchMut = useLaunchTournament(id);
   const toggleSeekingMut = useToggleSeeking(id);
   const matchesQuery = useTournamentMatches(id);
   const poolsQuery = useTournamentPools(id);
@@ -115,19 +129,33 @@ export default function TournamentDetailScreen() {
     ]);
   };
 
-  const handleToggleSeeking = async () => {
-    try {
-      await toggleSeekingMut.mutateAsync(!isSeeking);
-    } catch (err) {
-      Alert.alert('Erreur', formatApiError(err));
+  const [seekingModalOpen, setSeekingModalOpen] = useState(false);
+  const [seekingMessage, setSeekingMessage] = useState('');
+  const [qrOpen, setQrOpen] = useState(false);
+
+  const handleToggleSeeking = () => {
+    if (isSeeking) {
+      toggleSeekingMut
+        .mutateAsync({ seek: false })
+        .catch((err) => Alert.alert('Erreur', formatApiError(err)));
+    } else {
+      setSeekingMessage('');
+      setSeekingModalOpen(true);
     }
+  };
+
+  const confirmSeeking = () => {
+    toggleSeekingMut
+      .mutateAsync({ seek: true, message: seekingMessage })
+      .then(() => setSeekingModalOpen(false))
+      .catch((err) => Alert.alert('Erreur', formatApiError(err)));
   };
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Back minimal — AppHeader global prend le reste */}
-        <View className="px-4 pt-2 pb-1">
+        {/* Back + action QR */}
+        <View className="flex-row items-center justify-between px-4 pt-2 pb-1">
           <Pressable
             onPress={() => router.back()}
             className="h-9 w-9 items-center justify-center rounded-full"
@@ -135,6 +163,18 @@ export default function TournamentDetailScreen() {
           >
             <ArrowLeft size={20} color="#1A2A4A" />
           </Pressable>
+          {tournament.share_link ? (
+            <Pressable
+              onPress={() => setQrOpen(true)}
+              hitSlop={8}
+              className="flex-row items-center gap-1.5 rounded-full border border-brand-border bg-white px-3 py-1.5"
+            >
+              <QrCode size={14} color="#1A2A4A" />
+              <Text variant="caption" className="text-[12px] font-heading">
+                QR
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Titre + statut dans le contenu */}
@@ -212,6 +252,40 @@ export default function TournamentDetailScreen() {
             onUnregister={handleUnregister}
           />
         </View>
+
+        {/* Lancer — owner only, status open/full, min 2 équipes */}
+        {tournament.creator?.uuid === user?.uuid &&
+        (tournament.status === 'open' || tournament.status === 'full') ? (
+          <View className="mx-4 mt-3">
+            <Button
+              label={
+                teamsCount < 2
+                  ? `Lancer (min 2 équipes, ${teamsCount} inscrite${teamsCount > 1 ? 's' : ''})`
+                  : 'Lancer le tournoi'
+              }
+              leftIcon={<Trophy size={18} color="#FFFFFF" />}
+              disabled={teamsCount < 2 || launchMut.isPending}
+              loading={launchMut.isPending}
+              onPress={() =>
+                Alert.alert(
+                  'Lancer le tournoi',
+                  `Cela clôt les inscriptions et génère les matchs pour ${teamsCount} équipe${teamsCount > 1 ? 's' : ''}. Action irréversible.`,
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                      text: 'Lancer',
+                      style: 'destructive',
+                      onPress: () =>
+                        launchMut
+                          .mutateAsync()
+                          .catch((err) => Alert.alert('Erreur', formatApiError(err))),
+                    },
+                  ],
+                )
+              }
+            />
+          </View>
+        ) : null}
 
         {/* Tabs — Matches/Poules/Classement apparaissent uniquement quand le tournoi est lancé */}
         <Tabs<TabKey>
@@ -415,6 +489,52 @@ export default function TournamentDetailScreen() {
           ) : null}
         </View>
       </ScrollView>
+
+      {/* Modal déclaration seeking avec message optionnel */}
+      <Modal
+        visible={seekingModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSeekingModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="flex-1"
+        >
+          <Pressable onPress={() => setSeekingModalOpen(false)} className="flex-1 bg-black/40" />
+          <View className="rounded-t-3xl bg-white px-6 pb-8 pt-5">
+            <Text variant="h2" className="text-[18px]">
+              Je suis seul sur ce tournoi
+            </Text>
+            <Text variant="caption" className="mt-1 text-[12px]">
+              Ajoute un mot pour les autres joueurs (optionnel).
+            </Text>
+            <TextInput
+              value={seekingMessage}
+              onChangeText={setSeekingMessage}
+              placeholder="Ex : dispo tout le week-end, je joue à gauche…"
+              placeholderTextColor="#94A3B8"
+              multiline
+              maxLength={500}
+              className="mt-4 min-h-[96px] rounded-2xl border border-brand-border bg-brand-bg p-4 font-body text-[14px] text-brand-navy"
+              style={{ textAlignVertical: 'top' }}
+            />
+            <Button
+              label="Me déclarer"
+              loading={toggleSeekingMut.isPending}
+              onPress={confirmSeeking}
+              className="mt-4"
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <TournamentQrModal
+        visible={qrOpen}
+        onClose={() => setQrOpen(false)}
+        tournamentName={tournament.name}
+        shareLink={tournament.share_link}
+      />
     </SafeAreaView>
   );
 }
