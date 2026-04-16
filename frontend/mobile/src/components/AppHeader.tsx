@@ -56,46 +56,46 @@ export function AppHeader() {
         className="border-b border-brand-border bg-white px-3"
         style={{ paddingTop: insets.top, paddingBottom: 10 }}
       >
-        <View className="h-12 flex-row items-center gap-1">
-          {/* Hamburger gauche */}
+        <View className="h-12 flex-row items-center">
+          {/* Zone gauche — hamburger fixe */}
           <Pressable
             onPress={() => setMenuOpen(true)}
-            className="h-9 w-9 items-center justify-center"
+            className="h-9 w-9 shrink-0 items-center justify-center"
             hitSlop={6}
           >
             <Menu size={22} color="#1A2A4A" />
           </Pressable>
 
-          {/* Wordmark OR Search input */}
-          {!searchOpen ? (
-            <Pressable
-              onPress={() => router.push('/(tabs)/home' as never)}
-              hitSlop={6}
-              className="ml-1"
-            >
-              <Text variant="h3" className="text-[18px] text-brand-navy font-heading-black">
-                Place<Text className="text-brand-orange font-heading-black">To</Text>Padel
-              </Text>
-            </Pressable>
-          ) : (
-            <TextInput
-              autoFocus
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Tournoi, club, joueur…"
-              placeholderTextColor="#94A3B8"
-              className="ml-1 h-8 flex-1 rounded-full border border-brand-border bg-brand-bg px-3 font-body text-[13px] text-brand-navy"
-              returnKeyType="search"
-            />
-          )}
+          {/* Zone centre — wordmark OU input (bornée par flex-1, ne déborde pas) */}
+          <View className="mx-2 flex-1 flex-row items-center">
+            {searchOpen ? (
+              <TextInput
+                autoFocus
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Tournoi, club, joueur…"
+                placeholderTextColor="#94A3B8"
+                className="h-8 w-full rounded-full border border-brand-border bg-brand-bg px-3 font-body text-[13px] text-brand-navy"
+                returnKeyType="search"
+              />
+            ) : (
+              <Pressable
+                onPress={() => router.push('/(tabs)/home' as never)}
+                hitSlop={6}
+              >
+                <Text variant="h3" className="text-[18px] text-brand-navy font-heading-black">
+                  Place<Text className="text-brand-orange font-heading-black">To</Text>Padel
+                </Text>
+              </Pressable>
+            )}
+          </View>
 
-          {!searchOpen ? <View className="flex-1" /> : null}
-
-          {/* Zone droite — auth-aware */}
+          {/* Zone droite — actions auth-aware (masquées pendant search pour laisser
+              la place à l'input + au toggle X) */}
           {!searchOpen && !isLoggedIn ? (
             <Pressable
               onPress={() => router.push('/(auth)/register')}
-              className="h-8 items-center justify-center rounded-full bg-brand-orange px-3"
+              className="h-8 shrink-0 items-center justify-center rounded-full bg-brand-orange px-3"
             >
               <Text variant="caption" className="font-heading-black text-white text-[11px]">
                 Inscription gratuite
@@ -104,7 +104,7 @@ export function AppHeader() {
           ) : null}
 
           {!searchOpen && isLoggedIn ? (
-            <>
+            <View className="flex-row items-center">
               <IconButton
                 icon={<MessageCircle size={20} color="#1A2A4A" />}
                 badge={unreadMessages}
@@ -115,13 +115,13 @@ export function AppHeader() {
                 badge={unreadNotifications}
                 onPress={() => router.push('/notifications' as never)}
               />
-            </>
+            </View>
           ) : null}
 
-          {/* Toggle Search (tous états) */}
+          {/* Toggle Search — toujours visible à droite, shrink-0 pour rester accessible */}
           <Pressable
             onPress={toggleSearch}
-            className="h-9 w-9 items-center justify-center"
+            className="h-9 w-9 shrink-0 items-center justify-center"
             hitSlop={6}
           >
             {searchOpen ? (
