@@ -34,6 +34,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text, useFadeInUp } from '@/design-system';
 import { formatApiError } from '@/lib/api';
 import { useConversations } from '@/features/conversations/useConversations';
+import { useUnreadCounters } from '@/features/counters/useCounters';
 import { useProposals } from '@/features/proposals/useProposals';
 import { useMySeekingTournaments } from '@/features/tournaments/useTournament';
 import Animated from 'react-native-reanimated';
@@ -231,13 +232,7 @@ function CockpitPlayer({
             onPress={() => router.push('/scan' as never)}
           />
           <ProposalsActionCard onPress={() => router.push('/proposals')} />
-          <ActionCard
-            icon={Bell}
-            label="Notifications"
-            subtitle="Dispo dans une prochaine itération"
-            onPress={() => undefined}
-            disabled
-          />
+          <NotificationsActionCard onPress={() => router.push('/notifications' as never)} />
           <MessagesActionCard onPress={() => router.push('/conversations')} />
           <ActionCard
             icon={Heart}
@@ -263,6 +258,44 @@ function CockpitPlayer({
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// NotificationsActionCard — badge unread aligné sur useUnreadCounters
+// (partagé avec AppHeader, cache global, pas de double-fetch).
+// ──────────────────────────────────────────────────────────────────
+function NotificationsActionCard({ onPress }: { onPress: () => void }) {
+  const { unreadNotifications } = useUnreadCounters();
+  const subtitle =
+    unreadNotifications > 0
+      ? `${unreadNotifications} non lue${unreadNotifications > 1 ? 's' : ''}`
+      : 'Alertes tournois, inscriptions, messages';
+
+  return (
+    <Pressable onPress={onPress}>
+      <Card>
+        <View className="flex-row items-center gap-3">
+          <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
+            <Bell size={20} color="#1A2A4A" />
+            {unreadNotifications > 0 ? (
+              <View className="absolute -right-1 -top-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-orange px-1">
+                <Text className="text-[10px] font-heading-black text-white">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View className="flex-1">
+            <Text variant="body-medium">Notifications</Text>
+            <Text variant="caption" className="mt-0.5">
+              {subtitle}
+            </Text>
+          </View>
+          <ChevronRight size={16} color="#94A3B8" />
+        </View>
+      </Card>
+    </Pressable>
   );
 }
 
@@ -431,13 +464,7 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
             subtitle="Tous mes tournois organisés"
             onPress={() => router.push('/(tabs)/tournois')}
           />
-          <ActionCard
-            icon={Bell}
-            label="Notifications"
-            subtitle="Dispo dans une prochaine itération"
-            onPress={() => undefined}
-            disabled
-          />
+          <NotificationsActionCard onPress={() => router.push('/notifications' as never)} />
           <ActionCard
             icon={MessageCircle}
             label="Messages"
