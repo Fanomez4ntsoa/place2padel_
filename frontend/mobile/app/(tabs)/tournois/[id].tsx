@@ -8,9 +8,21 @@ import {
   UserPlus,
   Users,
   UserX,
+  X,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MatchRow } from '@/components/matches/MatchRow';
@@ -30,12 +42,15 @@ import { useCheckoutStatus, useCreateCheckout } from '@/features/payments/usePay
 import type { TournamentStatus } from '@/features/tournaments/types';
 import {
   useLaunchTournament,
+  useMySeekingTournaments,
   useRegisterTeam,
   useSeekingPartners,
   useToggleSeeking,
   useTournament,
   useUnregisterTeam,
 } from '@/features/tournaments/useTournament';
+
+const SEEKING_MESSAGE_MAX = 500;
 
 type TabKey = 'infos' | 'teams' | 'seeking' | 'matches' | 'pools' | 'ranking';
 
@@ -62,6 +77,7 @@ export default function TournamentDetailScreen() {
 
   const { data: tournament, isLoading, refetch } = useTournament(id);
   const seekingQuery = useSeekingPartners(id);
+  const mySeekingQuery = useMySeekingTournaments(!!user);
   const registerMut = useRegisterTeam(id);
   const unregisterMut = useUnregisterTeam(id);
   const toggleSeekingMut = useToggleSeeking(id);
@@ -75,6 +91,8 @@ export default function TournamentDetailScreen() {
   // L'ordre doit rester stable entre les renders, y compris la transition loading→loaded.
   const [tab, setTab] = useState<TabKey>('infos');
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
+  const [seekingModalOpen, setSeekingModalOpen] = useState(false);
+  const [seekingMessage, setSeekingMessage] = useState('');
 
   // Auto-switch du tab si la liste des tabs visibles change.
   // open/full      : [infos, teams, seeking]
@@ -110,7 +128,9 @@ export default function TournamentDetailScreen() {
   const isRegistered = !!tournament.teams?.some(
     (t) => t.captain.uuid === user?.uuid || t.partner?.uuid === user?.uuid,
   );
-  const isSeeking = !!seekingQuery.data?.data?.some((s) => s.user.uuid === user?.uuid);
+  // Source de vérité : /seeking-partner/my (la liste /seeking-partners exclut le
+  // viewer côté backend pour ne pas se proposer à soi-même).
+  const isSeeking = !!mySeekingQuery.data?.some((e) => e.tournament.uuid === id);
 
   const handleRegister = async () => {
     // Si tournoi online payant → Stripe Checkout.
@@ -157,9 +177,22 @@ export default function TournamentDetailScreen() {
     ]);
   };
 
-  const handleToggleSeeking = async () => {
+  const handleToggleSeeking = () => {
+    if (isSeeking) {
+      toggleSeekingMut
+        .mutateAsync({ seek: false })
+        .catch((err) => Alert.alert('Erreur', formatApiError(err)));
+      return;
+    }
+    setSeekingMessage('');
+    setSeekingModalOpen(true);
+  };
+
+  const submitSeeking = async () => {
     try {
-      await toggleSeekingMut.mutateAsync(!isSeeking);
+      await toggleSeekingMut.mutateAsync({ seek: true, message: seekingMessage });
+      setSeekingModalOpen(false);
+      setSeekingMessage('');
     } catch (err) {
       Alert.alert('Erreur', formatApiError(err));
     }
@@ -505,6 +538,15 @@ export default function TournamentDetailScreen() {
           Alert.alert('Paiement confirmé', 'Tu es inscrit au tournoi !');
         }}
       />
+
+      <SeekingBottomSheet
+        visible={seekingModalOpen}
+        message={seekingMessage}
+        onChangeMessage={setSeekingMessage}
+        onClose={() => setSeekingModalOpen(false)}
+        onSubmit={submitSeeking}
+        submitting={toggleSeekingMut.isPending}
+      />
     </SafeAreaView>
   );
 }
@@ -670,5 +712,70 @@ function TournamentCta({
         </View>
       ) : null}
     </View>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────
+// SeekingBottomSheet — champ message optionnel (max 500) + CTA
+// ───────────────────────────────────────────────────────────────
+function SeekingBottomSheet({
+  visible,
+  message,
+  onChangeMessage,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
+  visible: boolean;
+  message: string;
+  onChangeMessage: (v: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+}) {
+  if (!visible) return null;
+
+  const remaining = SEEKING_MESSAGE_MAX - message.length;
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        className="flex-1"
+      >
+        <Pressable onPress={onClose} className="flex-1 bg-black/40" />
+        <View className="rounded-t-3xl bg-white px-6 pb-8 pt-5">
+          <View className="mb-4 flex-row items-center justify-between">
+            <Text variant="h2" className="text-[18px]">
+              Je suis seul sur ce tournoi
+            </Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <X size={22} color="#1A2A4A" />
+            </Pressable>
+          </View>
+          <Text variant="caption" className="mb-3">
+            Tu apparaîtras dans la liste des joueurs seuls. Ajoute un mot pour te
+            présenter (optionnel).
+          </Text>
+          <TextInput
+            value={message}
+            onChangeText={(t) => onChangeMessage(t.slice(0, SEEKING_MESSAGE_MAX))}
+            placeholder="Ex : je joue à gauche P100, dispo tout le week-end."
+            placeholderTextColor="#94A3B8"
+            multiline
+            className="min-h-[96px] rounded-2xl border border-brand-border bg-brand-bg p-4 font-body text-[15px] text-brand-navy"
+            textAlignVertical="top"
+          />
+          <Text variant="caption" className="mt-1 text-right text-[11px]">
+            {remaining} caractères restants
+          </Text>
+
+          <View className="mt-4 gap-2">
+            <Button label="Me déclarer" loading={submitting} onPress={onSubmit} />
+            <Button label="Annuler" variant="ghost" onPress={onClose} />
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
