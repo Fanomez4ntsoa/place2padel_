@@ -279,8 +279,11 @@ function NotificationsActionCard({ onPress }: { onPress: () => void }) {
           <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
             <Bell size={20} color="#1A2A4A" />
             {unreadNotifications > 0 ? (
-              <View className="absolute -right-1 -top-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-orange px-1">
-                <Text className="text-[10px] font-heading-black text-white">
+              <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-orange px-1">
+                <Text
+                  className="font-heading-black text-white"
+                  style={{ fontSize: 10, lineHeight: 12, includeFontPadding: false, textAlignVertical: 'center' }}
+                >
                   {unreadNotifications > 99 ? '99+' : unreadNotifications}
                 </Text>
               </View>
@@ -314,8 +317,11 @@ function MessagesActionCard({ onPress }: { onPress: () => void }) {
           <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
             <MessageCircle size={20} color="#1A2A4A" />
             {unread > 0 ? (
-              <View className="absolute -right-1 -top-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-orange px-1">
-                <Text className="text-[10px] font-heading-black text-white">
+              <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-orange px-1">
+                <Text
+                  className="font-heading-black text-white"
+                  style={{ fontSize: 10, lineHeight: 12, includeFontPadding: false, textAlignVertical: 'center' }}
+                >
                   {unread > 99 ? '99+' : unread}
                 </Text>
               </View>
@@ -349,8 +355,11 @@ function ProposalsActionCard({ onPress }: { onPress: () => void }) {
           <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
             <Inbox size={20} color="#1A2A4A" />
             {pendingCount > 0 ? (
-              <View className="absolute -right-1 -top-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-orange px-1">
-                <Text className="text-[10px] font-heading-black text-white">
+              <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-orange px-1">
+                <Text
+                  className="font-heading-black text-white"
+                  style={{ fontSize: 10, lineHeight: 12, includeFontPadding: false, textAlignVertical: 'center' }}
+                >
                   {pendingCount > 99 ? '99+' : pendingCount}
                 </Text>
               </View>
@@ -465,13 +474,7 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
             onPress={() => router.push('/(tabs)/tournois')}
           />
           <NotificationsActionCard onPress={() => router.push('/notifications' as never)} />
-          <ActionCard
-            icon={MessageCircle}
-            label="Messages"
-            subtitle="Dispo dans une prochaine itération"
-            onPress={() => undefined}
-            disabled
-          />
+          <MessagesActionCard onPress={() => router.push('/conversations')} />
 
           <Button
             label="Se déconnecter"
