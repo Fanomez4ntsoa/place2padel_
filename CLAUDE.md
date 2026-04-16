@@ -34,14 +34,16 @@ La feature la plus puissante n'est pas le swipe global. C'est :
 
 Un joueur se déclare seul sur un tournoi précis → les autres joueurs seuls intéressés par ce même tournoi apparaissent → mise en relation dans un contexte concret → taux de conversion fort.
 
-### Structure 5 onglets (navbar)
+### Structure 5 onglets (navbar) — mise à jour post-Emergent 39b6544
 | Onglet | Rôle |
 |--------|------|
 | **Actu** | Fil actualité intelligent (tournois, résultats, clubs) — rétention |
 | **Tournois** | Cœur business — trouver, créer, vivre un tournoi |
 | **Cockpit** | Centre de contrôle personnel — signature UX orange surélevé |
+| **Match** | Matchs amicaux + ELO (icône Swords) — remplace Clubs dans la navbar |
 | **Partenaires** | Matching partenaires lié au jeu réel |
-| **Clubs** | Exploration locale — OS local du padel |
+
+> **Clubs** reste accessible via routes (`/clubs`, `/clubs/[id]`) mais n'est plus onglet navbar — décision Emergent 39b6544 suivie.
 
 ### Salon tournoi
 Chaque tournoi génère son propre espace de communication (remplace les groupes WhatsApp) : annonces, horaires, échanges, suivi des matchs.
@@ -49,10 +51,14 @@ Chaque tournoi génère son propre espace de communication (remplace les groupes
 ### Stratégie de lancement
 **LANCER > PARFAIRE** — 10 joueurs → 50 → 100. Observer, corriger, accélérer.
 
-### Monétisation
-- Phase 1 : **Gratuit** (adoption + dépendance)
-- Phase 2 : **1€/mois** (après validation usage réel)
-- Stripe intégré en Phase 2 uniquement
+### Monétisation — modèle aligné Emergent 39b6544
+- **Paiement par tournoi** : l'organisateur choisit à la création du tournoi entre `on_site` (défaut, inscription directe) ou `online` (Stripe Checkout requis avant inscription)
+- Prix parsé depuis un champ texte libre (ex : `"15€"` → `15.0`)
+- Frais plateforme éventuels à définir (pas dans MVP)
+- Stripe SDK natif (`laravel/cashier`) — **PAS** d'emergentintegrations proxy
+- Resend activé avec vraie clé API (à configurer dans `.env`)
+
+> Le modèle "1€/mois abonnement" initialement envisagé est abandonné au profit du modèle organisateur-choisit d'Emergent — meilleure UX pour les joueurs et monétisation par volume tournoi plutôt que récurrence.
 
 ### Expansion future
 Espagne identifiée comme extension naturelle. **Construire dès maintenant avec i18n en tête** (Laravel `lang/`, colonnes `locale`, slugs multilingues).
@@ -130,15 +136,17 @@ app/
 │   │   └── Resources/
 │   ├── User/
 │   ├── Tournament/
-│   ├── Match/
+│   ├── Match/              # Match engine (tournoi) — Phase 2
+│   ├── FriendlyMatch/      # Match amical + ELO — Phase 6.2 G7
 │   ├── Matchmaking/
+│   ├── GameProposal/       # Propositions match amical post-like — Phase 6.2 G8
 │   ├── Notification/
 │   ├── Club/
-│   ├── Payment/        # Phase 2
-│   ├── Social/         # Phase 2
+│   ├── Payment/            # Stripe par tournoi — Phase 6.2 (post-G7/G8)
+│   ├── Social/             # Feed Phase 5.1 ✅
 │   └── Admin/
 ├── Models/
-├── Jobs/               # Laravel Horizon / queues
+├── Jobs/                   # Laravel Horizon / queues
 ├── Events/
 └── Listeners/
 ```
@@ -815,12 +823,17 @@ URL Prod actuelle : https://www.placetopadel.com
 - [x] 243 tests PHPUnit verts (892 assertions)
 - [x] Insomnia validé
 
-#### Phase 5.2 — Stripe (reportée)
-- [ ] Payment Stripe (1€/mois) — après validation usage réel
-  - POST /payments/subscribe
-  - GET /payments/status
-  - Webhook Stripe
-  - Table subscriptions
+#### Phase 5.2 — Stripe par tournoi (Phase 6.2 post-G8)
+Modèle : **paiement par tournoi** (l'organisateur choisit à la création entre `on_site` et `online`). Aligné Emergent 39b6544.
+- [ ] Migration `payment_transactions` (session_id unique, status, amount, user_id+tournament_id)
+- [ ] Colonne `payment_method` ENUM(on_site, online) sur `tournaments` (default on_site)
+- [ ] Module `Payment` : `StripeService` natif (laravel/cashier), `CreateCheckoutSessionController`, `GetCheckoutStatusController`, `StripeWebhookController`
+- [ ] 3 endpoints :
+  - POST /payments/checkout/create (valide éligibilité, crée session Stripe, renvoie checkout_url)
+  - GET /payments/checkout/status/{session_id} (status paid → auto-inscription + notification)
+  - POST /webhook/stripe (handler non-bloquant)
+- [ ] Mobile : détail tournoi → WebView ou in-app browser pour checkout Stripe, polling status au retour
+- [ ] Prix parsé depuis champ texte libre (helper `parsePrice` : `"15€"` → `15.0`)
 
 ### Récap global
 | Module | Endpoints | Tests |
@@ -871,13 +884,38 @@ Projet Emergent commit **d541157** — `~/project/placeToPadel/frontend/`
 - [ ] Nouvelles pages : MatchingPage + OrganisateursPage (marketing statique)
 - [ ] Tournaments (header délégué AppHeader)
 
-#### Phase 6.2 — Fonctionnalités avancées
-- [ ] Score live (MatchLivePage)
-- [ ] QR code scanner
-- [ ] Push notifications (Expo Push → remplace VAPID stubs backend)
-- [ ] Google OAuth mobile (expo-auth-session)
-- [ ] Chat/Conversations
-- [ ] Seeking partner mobile
+#### Phase 6.2 — Fonctionnalités avancées (EN COURS)
+Référence : Emergent **39b6544** (resync post-d541157 avec Stripe + Matchs amicaux + ELO).
+
+**Groupes déjà livrés** :
+- [x] G1 : Score live (MatchLivePage + Pools + Ranking) — branche `feature/mobile-phase-6-2`
+- [x] G2 : Seeking partner complet (mySeekings + Proposals inbox + message optionnel)
+- [x] G3 : Chat / Conversations (list + détail + polling 10s)
+- [x] G4 : QR scanner (expo-camera) + TournamentQrModal (react-native-qrcode-svg)
+- [x] Bonus : bouton "Lancer un tournoi" owner-only
+- [x] Fix backend : whitelist `role` register (player|referee)
+- [x] Hide Google OAuth button (backend Socialite intact)
+
+**Groupes bloqués par credentials externes** :
+- [ ] **G5 — Google OAuth mobile** (bloqué GOOGLE_CLIENT_ID Android + iOS)
+- [ ] **G6 — Push notifications Expo** (bloqué EAS projectId + FCM key + APNs). Configuration EAS en cours.
+
+**Nouveaux groupes à livrer** (alignés Emergent 39b6544) :
+- [ ] **G7 — Matchs amicaux + ELO** (Phase 6 Emergent) :
+  - Backend : module `FriendlyMatch`, migrations `friendly_matches` + `user_elos` + `match_participants`, 12 endpoints, `ELOService` (K=0.3, échelle 1-10, locked <5 matchs)
+  - Mobile : 2 nouveaux écrans (`/match` FriendlyMatchPage + `/match/[id]/live` FriendlyMatchLivePage), onglet Matchs dans Profile (ELO card + history), refonte **BottomNav** (Clubs sort, Match entre Cockpit et Partenaires, icône Swords)
+- [ ] **G8 — Game proposals** (dépend G7) :
+  - Backend : module `GameProposal`, 4 endpoints (POST / PUT respond / DELETE / POST start → crée friendly_match)
+  - Mobile : intégration dans l'écran Partenaires (bouton "Proposer un match" après like) et dans AppHeader (recherche utilisateurs + invite)
+- [ ] **G9 — Stripe par tournoi** (Phase 5.2 renommée) : voir section dédiée ci-dessus
+- [ ] **G10 — Resend production** : remplacer la clé placeholder dans `.env`, tester `SendEmailJob` end-to-end
+
+### Décisions produit actées
+- **BottomNav** : 5 onglets = Actu / Tournois / Cockpit / **Match** (remplace Clubs) / Partenaires
+- **Clubs** : reste accessible via routes, hors navbar
+- **Stripe** : modèle "paiement par tournoi" (on_site / online au choix organisateur), pas d'abonnement mensuel
+- **Google OAuth mobile** : masqué UI jusqu'à credentials, backend Socialite intact
+- **Expo Push** : configuration EAS en cours, pas de blocage des autres groupes
 
 ### Phase 7 — Web Next.js
 - [ ] Dashboard admin
