@@ -637,7 +637,7 @@ php artisan make:event TournamentCreated
 
 ---
 
-*Dernière mise à jour : 13 avril 2026*
+*Dernière mise à jour : 16 avril 2026 (Phase 6.2 clôturée + gaps G2/G3/G4 comblés + 7 bugs grand test résolus)*
 *Vision & validation : Fanomezantsoa | Implémentation : Claude Code*
 
 1. **Sur-architecture** : pas de microservices d'emblée — Laravel monolithe modulaire d'abord
@@ -835,26 +835,31 @@ Modèle : **paiement par tournoi** (l'organisateur choisit à la création entre
 - [ ] Mobile : détail tournoi → WebView ou in-app browser pour checkout Stripe, polling status au retour
 - [ ] Prix parsé depuis champ texte libre (helper `parsePrice` : `"15€"` → `15.0`)
 
-### Récap global
+### Récap global backend (post-Phase 6.2 + fixes grand test)
+13 modules Laravel : `Admin`, `Auth`, `Club`, `Feed`, `FriendlyMatch`, `GameProposal`, `Match`, `Matchmaking`, `Notification`, `Payment`, `Social`, `Tournament`, `User`.
+
 | Module | Endpoints | Tests |
 |--------|-----------|-------|
-| Auth | 8 | 32 |
+| Auth | 8 | 36 |
 | User/Profile | 6 | 45 |
 | Club | 5 | 20 |
 | Tournament | 10 | 35 |
-| Match Engine | 7 | 43 |
+| Match Engine | 7 | 44 *(+1 pool standings team_name/seed, fix 0b2fd5c)* |
 | Notifications | 6 | 17 |
 | Matchmaking | 11 | 27 |
 | Feed social | 9 | 24 |
-| **TOTAL** | **62** | **243** |
+| FriendlyMatch + ELO | 13 | 30 |
+| GameProposal | 5 | 19 |
+| Payment (Stripe) | 3 | 14 |
+| **TOTAL** | **83** | **310** *(1110 assertions)* |
 
 ### Phase 6 — App mobile React Native + Expo
 Branche active : **`main`** (toutes les phases 6.1 → 6.2 mergées au 2026-04-16)
 Stack : React Native + Expo SDK 54, Expo Router, NativeWind v4, TanStack Query, Reanimated 4
 
 #### Référence visuelle définitive
-Projet Emergent commit **d541157** — `~/project/placeToPadel/frontend/`
-⚠️ Nom officiel : **"PlaceToPadel"** (pas "Place2Padel")
+Projet Emergent commit **39b6544** — `~/project/placeToPadel/frontend/` (resync post-d541157 : Stripe + Matchs amicaux + ELO + Match tab en navbar).
+⚠️ Nom officiel : **"PlaceToPadel"** (pas "Place2Padel" — rename UI complet, reste `place2padel` uniquement dans `package.json` / `app.json` bundle identifiers + scheme, à aligner Phase 7).
 
 #### Phase 6.1 — Vertical slice MVP ✅ COMPLÈTE
 - [x] Bootstrap Expo + NativeWind + TypeScript strict
@@ -869,31 +874,35 @@ Projet Emergent commit **d541157** — `~/project/placeToPadel/frontend/`
 - [x] Cockpit dual (joueur + arbitre)
 - [x] Profil (affichage + édition bio/ville)
 - [x] Logout + toast erreur réseau + skeletons loading
-- [x] Stubs Actu / Partenaires / Clubs
+- [x] Stubs Actu / Partenaires / Clubs *(remplacés par écrans complets en 6.1.5/6.1.6)*
 
-#### Phase 6.1.5 — Resynchronisation Emergent d541157
-À faire après Phase 6.1 complète :
-- [ ] Nom "PlaceToPadel" partout (logo, textes, package)
-- [ ] Register refonte complète (accountType Joueur/Juge, position, niveau, disponibilités, bio, photo)
-- [ ] HomePage refonte hero marketing + grille 3×3 features + popups
-- [ ] AppHeader (logo PlaceToPadel, badges unread Messages+Notifs, CTA inscription)
-- [ ] Cockpit (mode vacances)
-- [ ] Feed (filtres sticky, images 4/5)
-- [ ] Profile (header simplifié sans cover)
-- [ ] Partenaires (3 modes : amical/tournoi/rencontre)
-- [ ] Nouvelles pages : MatchingPage + OrganisateursPage (marketing statique)
-- [ ] Tournaments (header délégué AppHeader)
+#### Phase 6.1.5 — Resynchronisation Emergent 39b6544 ✅ COMPLÈTE
+- [x] Rename UI "PlaceToPadel" (AppHeader, écrans, copywriting) — bundle identifiers restent `place2padel` (Phase 7)
+- [x] Register refonte complète (accountType Joueur/Juge, position, niveau, disponibilités, bio, photo — 723 lignes)
+- [x] HomePage (redirect auth-aware via `app/index.tsx` — la landing marketing Emergent n'est pas portée mobile, remplacée par l'écran Actu Feed)
+- [x] AppHeader (logo PlaceToPadel, badges unread Messages+Notifs, CTA inscription si non-auth)
+- [x] Cockpit (mode vacances : `VacationCard` avec modal ville)
+- [x] Feed (filtres sticky all/mes-tournois/mes-partenaires/mes-clubs, images 4/5, CommentsSheet)
+- [x] Profile (header simplifié sans cover, onglet Matchs + ELO)
+- [x] Partenaires (3 modes : amical / tournoi / rencontre — 218 lignes)
+- [x] Nouvelles pages : MatchingPage + OrganisateursPage (marketing statique)
+- [x] Tournaments (header global délégué à AppHeader via `(tabs)/_layout.tsx`)
 
 #### Phase 6.2 — Fonctionnalités avancées ✅ COMPLÈTE (tout sur `main`)
-Référence : Emergent **39b6544** (resync post-d541157 avec Stripe + Matchs amicaux + ELO).
+Référence : Emergent **39b6544** (resync post-d541157 avec Stripe + Matchs amicaux + ELO + Match tab en navbar).
 
-Backend post-Phase 6.2 : **309 tests PHPUnit verts** (1108 assertions). TSC mobile clean.
+Backend post-Phase 6.2 : **310 tests PHPUnit verts** (1110 assertions, +1 test pool standings ajouté au grand test). TSC mobile clean.
 
 **Groupes livrés et mergés** :
-- [x] **G1 — Score live** : MatchLivePage + Pools + Ranking, tie-break 8-8, double validation capitaine, forfait owner/admin. Tabs conditionnels status-based (open/full → infos/teams/seeking, in_progress/completed → matches/pools/ranking, max 3 tabs).
-- [x] **G2 — Seeking partner complet** : mySeekings, Proposals inbox, message optionnel, bloc Cockpit "Je suis seul"
-- [x] **G3 — Chat / Conversations** : liste + détail + composer, polling 10s (pas de websocket MVP)
-- [x] **G4 — QR scanner** : expo-camera + parsing share_link, TournamentQrModal avec react-native-qrcode-svg + partage natif
+- [x] **G1 — Score live** : MatchLivePage + Pools + Ranking, tie-break 8-8, double validation capitaine, forfait owner/admin, badge LIVE pulsé (Reanimated), polling 10s. Tabs conditionnels status-based (open/full → infos/teams/seeking, in_progress/completed → matches/pools/ranking, max 3 tabs).
+- [x] **G2 — Seeking partner complet + Proposals inbox** :
+  - Bottom-sheet message optionnel (max 500 chars) sur déclaration seeking
+  - `useMySeekingTournaments` via `/seeking-partner/my` (source de vérité car `/seeking-partners` exclut le viewer)
+  - Bloc Cockpit "Je suis seul (N)" cliquable avec liste tournois
+  - Écran `/proposals` pills Reçues/Envoyées, `ProposalCard` avec CTAs conditionnels (Accepter/Refuser reçues · Annuler envoyées)
+  - ActionCard "Propositions partenaires" Cockpit avec badge unread + subtitle dynamique
+- [x] **G3 — Chat / Conversations** : liste `/conversations`, détail `/conversations/[id]` avec FlatList + 3 types de bulles (me / autre / system / proposal), composer multi-ligne max 5000, polling 10s (pas de websocket MVP), MessagesActionCard Cockpit avec badge unread, AppHeader icône Messages cliquable.
+- [x] **G4 — QR scanner** : `expo-camera@~17.0.10` (CameraView) + parsing UUID v7 depuis share_link, debounce 1s, permission handling complet. `TournamentQrModal` avec `react-native-qrcode-svg` + metadata tournoi. Bouton QR header détail tournoi + ActionCard "Scanner un QR" Cockpit. ⚠️ Rebuild dev client requis (module natif, pas dispo Expo Go).
 - [x] **G7 — Matchs amicaux + ELO** : module Laravel FriendlyMatch + UserElo (K=0.3, échelle 1-10, **lock threshold = 10 matchs** — code Emergent fait foi vs PRD qui disait 5), 13 endpoints, 30 tests. Mobile : 2 écrans /match, onglet Matchs dans Profile, BottomNav refonte (Clubs sort, Match entre Cockpit et Partenaires, icône Swords).
 - [x] **G8 — Game proposals** (dépend G7) : module GameProposal, 5 endpoints, 19 tests. Mobile : GameProposalCard intégrée dans tab Match, flow accept/refuse/start bypass pending.
 - [x] **G9 — Stripe par tournoi** : modèle on_site/online au choix organisateur, stripe/stripe-php natif (pas emergentintegrations), PriceParser ("15€" → 15.0), 3 endpoints, 14 tests. Mobile : CheckoutPollingOverlay + CTA dynamique "S'inscrire — 15€".
@@ -915,6 +924,11 @@ Backend post-Phase 6.2 : **309 tests PHPUnit verts** (1108 assertions). TSC mobi
 - Rules of Hooks violation → fix `f632ea4` ✅
 - Tabs limitées à 3 max → fix `f44e77f` ✅
 - Badge LIVE non pulsé + boutons +/- owner non-participant → fix `bcded00` ✅
+- Pool standings contract cassé (backend ne renvoyait pas team_name/seed, frontend lisait `wins`/`losses`/`team_points` inexistants) → fix `0b2fd5c` + test de non-régression ✅
+- `isSeeking` toujours false (la liste `/seeking-partners` exclut le viewer) → fix via `useMySeekingTournaments` + bottom-sheet message + bloc Cockpit → commit `cdf4ea2` ✅
+- Gap G2 : aucune UI proposals (backend prêt depuis Phase 4.1 mais rien côté mobile) → fix `d39b4dd` (types + hooks + écran + ActionCard Cockpit) ✅
+- Gap G3/G4 : aucune UI conversations + aucun QR scanner (deps natives manquantes) → fix `3a36d94` (installe expo-camera + react-native-qrcode-svg, 6 nouveaux fichiers écrans + modal + hooks) ✅
+- Latence 30s du badge Messages post-accept proposition (invalidation `['counters', 'messages']` manquante) → fix `3a36d94` ✅
 
 **Grand test émulateur (flow complet Étapes 1→13)** : en cours, traçé dans [RESUME.md](RESUME.md) à la racine avec données de test (UUIDs Alice/Thomas/Sophie/Lucas/Marc/Emma + 2 tournois seedés). Étapes 1→7 validées, Étape 8 (Score live) en cours.
 

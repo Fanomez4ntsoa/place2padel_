@@ -2,7 +2,9 @@
 
 Tests manuels émulateur à exécuter avant la mise en prod. Couvre G1 → G9 + Bonus Launch + régression globale sur tous les modules mergés.
 
-Backend actuel sur `main` : **309 tests PHPUnit verts** (1108 assertions). TSC mobile : clean.
+Backend actuel sur `main` : **310 tests PHPUnit verts** (1110 assertions, +1 test pool standings team_name/seed). TSC mobile : clean.
+
+> **Statut implémentation (2026-04-16)** : tous les groupes G1 → G9 + proposals inbox + seeking UX + Chat + QR Scanner sont **mergés sur main**. Les cases ci-dessous sont à cocher lors d'un run émulateur (QA), pas à l'implémentation.
 
 ---
 
@@ -58,6 +60,8 @@ Backend actuel sur `main` : **309 tests PHPUnit verts** (1108 assertions). TSC m
 
 ## G2 — Seeking partner complet
 
+> ✅ **Implémenté & mergé** : bottom-sheet message (`SeekingBottomSheet` dans `tournois/[id].tsx`), bloc Cockpit `SeekingBlock` (source `useMySeekingTournaments` via `/seeking-partner/my`), écran `/proposals` pills Reçues/Envoyées + `ProposalCard`, ActionCard Cockpit avec badge orange unread. `isSeeking` désormais fiable (correction d'un bug où `/seeking-partners` excluait le viewer).
+
 ### Déclaration seeking avec message
 - [ ] Tab Seeking d'un tournoi `open/full` : bouton "Je suis seul sur ce tournoi" (non-seeking)
 - [ ] Tap → modal bottom-sheet avec TextInput multiline
@@ -100,6 +104,8 @@ Backend actuel sur `main` : **309 tests PHPUnit verts** (1108 assertions). TSC m
 
 ## G3 — Chat / Conversations
 
+> ✅ **Implémenté & mergé** (commit `3a36d94`) : écrans `app/conversations/index.tsx` + `app/conversations/[id].tsx`, hooks `useConversations` + `useMessages` + `useSendMessage` avec polling 10s/15s, AppHeader icône Messages cliquable, Cockpit `MessagesActionCard` avec badge unread superposé. Après accept proposition, la conversation remonte instantanément (invalidation `['counters', 'messages']` fixée).
+
 ### Liste conversations
 - [ ] Accessible depuis : AppHeader icône Messages + Cockpit ActionCard Messages
 - [ ] Empty state `MessageCircle` gris + "Aucune conversation" si vide
@@ -130,6 +136,10 @@ Backend actuel sur `main` : **309 tests PHPUnit verts** (1108 assertions). TSC m
 ---
 
 ## G4 — QR scanner & QR display
+
+> ✅ **Implémenté & mergé** (commit `3a36d94`) : `expo-camera@~17.0.10` installé + plugin `app.json` + permission FR, écran `app/scan.tsx` (CameraView + overlay visée 240×240 + debounce 1s + extraction UUID v7 regex), `TournamentQrModal` (`react-native-qrcode-svg` 240px), hook `useTournamentQr` staleTime 5 min, bouton QR header détail tournoi + ActionCard "Scanner un QR" Cockpit.
+>
+> ⚠️ **Rebuild dev client obligatoire pour tester `/scan`** : `expo-camera` est un module natif, indisponible dans Expo Go. Lance `npx expo run:android` (ou EAS dev build) au lieu de `npx expo start`. Le modal `TournamentQrModal` (affichage QR) fonctionne lui normalement en Expo Go.
 
 ### Affichage QR (tournament detail)
 - [ ] Bouton "QR" en haut-droite de la page détail tournoi (à côté du back) — visible UNIQUEMENT si `share_link` présent
@@ -450,7 +460,7 @@ Backend actuel sur `main` : **309 tests PHPUnit verts** (1108 assertions). TSC m
 - [ ] Affichage QR depuis détail tournoi → bottom-sheet + partage natif
 
 ### Backend
-- [ ] `php artisan test` : **309 tests verts** (1108 assertions)
+- [ ] `php artisan test` : **310 tests verts** (1110 assertions)
 - [ ] `php artisan route:list` : toutes les routes listées sans warning
 - [ ] `php artisan horizon:status` : worker actif si Redis démarré
 - [ ] Queues : `php artisan queue:listen` traite les jobs sans erreur (emails, FanoutNotification, etc.)
@@ -463,9 +473,47 @@ Backend actuel sur `main` : **309 tests PHPUnit verts** (1108 assertions). TSC m
 
 ---
 
+## Bugs résolus pendant le grand test émulateur (2026-04-16)
+
+Corrections appliquées en cours de validation — toutes sur `main`.
+
+### Pool standings contract cassé (fix `0b2fd5c`)
+- Onglet Poules affichait des lignes vides (nom d'équipe, V/D/Pts tous blancs)
+- **Cause** : backend `MatchEngineService::calculatePoolStandings` ne renvoyait que `team_id` (pas `team_name`/`seed`), et le frontend lisait `wins`/`losses`/`team_points` inexistants (le backend renvoyait `won`/`lost`/`points`)
+- **Fix** : jointure `TournamentTeam` côté backend pour injecter `team_name`+`seed`, alignement frontend sur les bons noms de champs, +1 test de non-régression `test_standings_expose_team_name_and_seed`
+
+### isSeeking toujours false + bouton seeking "ne fait rien" (fix `cdf4ea2`)
+- Le bouton "Je suis seul" ne basculait jamais en "Retirer ma déclaration" malgré POST réussi
+- **Cause** : `MatchmakingService::listCompatibleSeekingPartners` exclut volontairement le viewer de sa propre liste → le frontend ne pouvait jamais détecter qu'il était seeking
+- **Fix** : nouveau hook `useMySeekingTournaments` sur `/seeking-partner/my` comme source de vérité, bottom-sheet message optionnel (max 500), bloc Cockpit "Je suis seul (N)"
+
+### Gap G2 — Inbox Propositions jamais codée (fix `d39b4dd`)
+- Le backend `/proposals` était prêt depuis Phase 4.1 mais aucun écran mobile ne le consommait → les propositions reçues restaient invisibles
+- **Fix** : nouveau module `features/proposals/` (types + 3 hooks), `ProposalCard` avec CTAs conditionnels direction/status, écran `/proposals` pills Reçues/Envoyées, ActionCard "Propositions partenaires" Cockpit avec subtitle dynamique "N en attente"
+
+### Gap G3/G4 — Chat + QR Scanner jamais codés côté mobile (fix `3a36d94`)
+- Backend `/conversations` prêt, aucun écran mobile. Aucune dep caméra installée.
+- **Fix** : installation `expo-camera` + `react-native-qrcode-svg` + `react-native-svg`, écrans conversations (liste + détail avec polling), écran `/scan` plein écran avec permission handling, `TournamentQrModal`, wiring AppHeader + Cockpit
+
+### Latence 30s du badge Messages post-accept (fix `3a36d94`)
+- Après qu'Emma accepte une proposition d'Alice, le badge Messages de l'AppHeader restait à 0 jusqu'à 30s (refetchInterval du hook `useUnreadCounters`)
+- **Cause** : `useRespondProposal.onSuccess` invalidait `['conversations']` mais pas `['counters', 'messages']`
+- **Fix** : ajout de l'invalidation croisée, le badge bascule immédiatement
+
+### Fixes antérieurs de la semaine (référence historique)
+- `982cffd` badge prix manquant sur TournamentCard
+- `7e901c3` CTA "S'inscrire" visible pour creator/referee
+- `149a67a` bouton "Lancer le tournoi" non mergé sur main
+- `3f9e009` + `41a33f1` G1 Score live non mergé + cleanup duplicates
+- `f632ea4` Rules of Hooks violation dans TournamentDetailScreen
+- `f44e77f` tabs tournoi limitées à 3 max (rename `status` → `statusStyle`)
+- `bcded00` badge LIVE non pulsé + boutons +/− visibles pour non-participant
+
+---
+
 ## Checklist avant mise en prod
 
-- [ ] Backend 309 tests verts
+- [ ] Backend 310 tests verts
 - [ ] Mobile TSC clean
 - [ ] `.env` prod renseigné (Stripe live keys, Resend domaine vérifié, S3 creds, VAPID ou Expo Push)
 - [ ] Webhook Stripe configuré dans dashboard pour `{prod_url}/api/v1/webhook/stripe`
