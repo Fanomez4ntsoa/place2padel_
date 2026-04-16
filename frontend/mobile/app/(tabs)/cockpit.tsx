@@ -5,9 +5,11 @@ import {
   ChevronRight,
   Heart,
   LogOut,
+  MapPin,
   MessageCircle,
   TreePalm,
   Plus,
+  Search,
   Swords,
   Trophy,
   User as UserIcon,
@@ -29,6 +31,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text, useFadeInUp } from '@/design-system';
 import { formatApiError } from '@/lib/api';
+import { useMySeekingTournaments } from '@/features/tournaments/useTournament';
 import Animated from 'react-native-reanimated';
 
 type IconCmp = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -210,6 +213,7 @@ function CockpitPlayer({
 
         <Animated.View style={fade} className="-mt-6 gap-3 px-5">
           <VacationCard />
+          <SeekingBlock />
           <ActionCard
             icon={Trophy}
             label="Mes tournois"
@@ -254,6 +258,60 @@ function CockpitPlayer({
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// SeekingBlock — liste des tournois où le joueur s'est déclaré seul
+// ──────────────────────────────────────────────────────────────────
+function SeekingBlock() {
+  const router = useRouter();
+  const { data, isLoading } = useMySeekingTournaments();
+
+  if (isLoading || !data || data.length === 0) return null;
+
+  return (
+    <View className="rounded-3xl border border-brand-orange/30 bg-brand-orange-light p-4">
+      <View className="mb-2 flex-row items-center gap-2">
+        <Search size={16} color="#E8650A" />
+        <Text variant="body-medium" className="text-[14px] text-brand-navy">
+          Je suis seul ({data.length})
+        </Text>
+      </View>
+      <Text variant="caption" className="mb-3">
+        Tu cherches un partenaire sur {data.length === 1 ? 'ce tournoi' : 'ces tournois'} :
+      </Text>
+      <View className="gap-2">
+        {data.map((entry) => (
+          <Pressable
+            key={entry.tournament.uuid}
+            onPress={() => router.push(`/(tabs)/tournois/${entry.tournament.uuid}`)}
+          >
+            <View className="rounded-2xl bg-white p-3">
+              <View className="flex-row items-center gap-2">
+                <Text variant="body-medium" className="flex-1 text-[13px]" numberOfLines={1}>
+                  {entry.tournament.name}
+                </Text>
+                <Badge label={entry.tournament.level} tone="info" />
+              </View>
+              {entry.tournament.club ? (
+                <View className="mt-1 flex-row items-center gap-1">
+                  <MapPin size={12} color="#64748B" />
+                  <Text variant="caption" className="text-[11px]" numberOfLines={1}>
+                    {entry.tournament.club.name} — {entry.tournament.club.city}
+                  </Text>
+                </View>
+              ) : null}
+              {entry.message ? (
+                <Text variant="caption" className="mt-1 text-[11px] italic" numberOfLines={2}>
+                  « {entry.message} »
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
+        ))}
+      </View>
+    </View>
   );
 }
 
