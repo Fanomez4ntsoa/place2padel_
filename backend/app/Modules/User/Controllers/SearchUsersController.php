@@ -17,7 +17,7 @@ class SearchUsersController extends Controller
         $perPage = (int) $request->integer('per_page', 15);
 
         $paginator = User::query()
-            ->with(['profile', 'club', 'preferredLevels', 'availabilities'])
+            ->with(['profile', 'clubs.club', 'preferredLevels', 'availabilities'])
             ->where(function ($query) use ($q): void {
                 $query->where('first_name', 'like', '%'.$q.'%')
                     ->orWhere('last_name', 'like', '%'.$q.'%')

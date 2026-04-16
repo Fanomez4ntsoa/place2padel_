@@ -43,6 +43,7 @@ class ListSeekingPartnersController extends Controller
         $data = $candidates->map(function ($row) {
             $interest = $row['interest'];
             $user = $interest->user;
+            $primaryClub = $user?->clubs->firstWhere('priority', 1)?->club;
             return [
                 'user' => [
                     'uuid' => $user?->uuid,
@@ -51,9 +52,13 @@ class ListSeekingPartnersController extends Controller
                     'position' => $user?->profile?->position,
                     'padel_points' => $user?->profile?->padel_points,
                     'ranking' => $user?->profile?->ranking,
-                    'club' => $user?->club ? ['name' => $user->club->name, 'city' => $user->club->city] : null,
+                    'club' => $primaryClub ? ['name' => $primaryClub->name, 'city' => $primaryClub->city] : null,
                     'availabilities' => $user?->availabilities
-                        ? $user->availabilities->pluck('day_of_week')->all() : [],
+                        ? $user->availabilities->map(fn ($av) => [
+                            'day_of_week' => $av->day_of_week,
+                            'period' => $av->period,
+                        ])->values()->all()
+                        : [],
                 ],
                 'message' => $interest->message,
                 'compatibility_score' => $row['score'],

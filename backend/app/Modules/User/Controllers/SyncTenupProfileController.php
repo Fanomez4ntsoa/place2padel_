@@ -33,7 +33,7 @@ class SyncTenupProfileController extends Controller
             ]);
         }
 
-        $user->load(['profile', 'club', 'preferredLevels', 'availabilities']);
+        $user->load(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
 
         return response()->json([
             'data' => [

@@ -19,7 +19,11 @@ class UpdateProfileRequest extends FormRequest
             'first_name' => ['sometimes', 'string', 'min:1', 'max:100'],
             'last_name' => ['sometimes', 'string', 'min:1', 'max:100'],
             'city' => ['sometimes', 'nullable', 'string', 'max:100'],
-            'club_uuid' => ['sometimes', 'nullable', 'uuid', Rule::exists('clubs', 'uuid')->where('is_active', true)],
+
+            // Clubs multi (jusqu'à 3, tri par priority) — remplace club_uuid singleton.
+            // Sémantique "replace" : la liste fournie écrase la précédente. Liste vide = aucun club.
+            'clubs' => ['sometimes', 'array', 'max:3'],
+            'clubs.*' => ['uuid', Rule::exists('clubs', 'uuid')->where('is_active', true)],
 
             // UserProfile — padel_points / ranking / tenup_* volontairement EXCLUS
             // (seuls FFTSyncJob et admin peuvent les modifier).
@@ -36,15 +40,44 @@ class UpdateProfileRequest extends FormRequest
             'preferred_levels' => ['sometimes', 'array', 'max:7'],
             'preferred_levels.*' => ['string', Rule::in(['P25', 'P50', 'P100', 'P250', 'P500', 'P1000', 'P2000'])],
 
-            'availabilities' => ['sometimes', 'array', 'max:7'],
-            'availabilities.*' => ['integer', 'between:1,7'],
+            // Availabilities en tuples {day_of_week, period}. day_of_week null + period 'all' = Flexible.
+            // Max 10 slots : 5 soirs semaine + 2 samedi (matin/ap-midi) + 2 dimanche + 1 flexible.
+            'availabilities' => ['sometimes', 'array', 'max:10'],
+            'availabilities.*' => ['array:day_of_week,period'],
+            'availabilities.*.day_of_week' => ['nullable', 'integer', 'between:1,7'],
+            'availabilities.*.period' => ['required', Rule::in(['morning', 'afternoon', 'evening', 'all'])],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($v) {
+            $slots = $this->input('availabilities', []);
+            if (! is_array($slots)) {
+                return;
+            }
+            foreach ($slots as $i => $slot) {
+                if (! is_array($slot)) {
+                    continue;
+                }
+                $day = $slot['day_of_week'] ?? null;
+                $period = $slot['period'] ?? null;
+                // Règle métier : day_of_week null ⇔ period 'all' (slot Flexible).
+                if ($day === null && $period !== 'all') {
+                    $v->errors()->add("availabilities.$i.period", 'Un slot sans jour doit avoir period = all (Flexible).');
+                }
+                if ($day !== null && $period === 'all') {
+                    $v->errors()->add("availabilities.$i.period", 'Period = all est réservé au slot Flexible (day_of_week null).');
+                }
+            }
+        });
     }
 
     public function messages(): array
     {
         return [
-            'club_uuid.exists' => "Le club sélectionné n'existe pas ou est désactivé.",
+            'clubs.max' => 'Tu peux déclarer au maximum 3 clubs.',
+            'clubs.*.exists' => "Un des clubs sélectionnés n'existe pas ou est désactivé.",
             'padel_level.between' => 'Le niveau padel doit être entre 1 et 5.',
         ];
     }

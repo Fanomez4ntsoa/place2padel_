@@ -32,18 +32,40 @@ class MatchmakingServiceTest extends TestCase
         return $r->invoke($this->service, ...$args);
     }
 
-    private function makeUser(array $profile = [], array $days = [], ?int $clubId = null): User
+    /**
+     * @param  array<int,int>|array<int,array{day_of_week:?int,period:string}>  $days
+     *   Liste des jours (int 1-7, period auto 'evening') ou tuples complets.
+     * @param  array<int,int>  $clubIds  Liste de club_id à associer (max 3, priority 1..N).
+     */
+    private function makeUser(array $profile = [], array $days = [], array $clubIds = []): User
     {
-        $u = User::factory()->create(['club_id' => $clubId]);
+        $u = User::factory()->create();
         UserProfile::create(array_merge([
             'user_id' => $u->id,
             'position' => 'both',
             'padel_points' => 1000,
         ], $profile));
         foreach ($days as $d) {
-            UserAvailability::create(['user_id' => $u->id, 'day_of_week' => $d]);
+            if (is_array($d)) {
+                UserAvailability::create([
+                    'user_id' => $u->id,
+                    'day_of_week' => $d['day_of_week'] ?? null,
+                    'period' => $d['period'] ?? 'all',
+                ]);
+            } else {
+                // Shortcut : int = jour + période par défaut 'evening'.
+                UserAvailability::create([
+                    'user_id' => $u->id,
+                    'day_of_week' => (int) $d,
+                    'period' => 'evening',
+                ]);
+            }
         }
-        return $u->fresh(['profile', 'availabilities']);
+        $priority = 1;
+        foreach ($clubIds as $clubId) {
+            $u->clubs()->create(['club_id' => $clubId, 'priority' => $priority++]);
+        }
+        return $u->fresh(['profile', 'availabilities', 'clubs']);
     }
 
     public function test_position_complementaire_max_30(): void
@@ -80,12 +102,45 @@ class MatchmakingServiceTest extends TestCase
     public function test_meme_club_max_15(): void
     {
         $club = Club::factory()->create();
-        $a = $this->makeUser(['position' => 'both'], [], $club->id);
-        $b = $this->makeUser(['position' => 'both'], [], $club->id);
+        $a = $this->makeUser(['position' => 'both'], [], [$club->id]);
+        $b = $this->makeUser(['position' => 'both'], [], [$club->id]);
         $t = Tournament::factory()->create();
 
-        // 20 (both) + 30 (level 0) + 0 (dispos) + 15 (même club) = 65.
+        // 20 (both) + 30 (level 0) + 0 (dispos) + 15 (≥ 1 club commun) = 65.
         $this->assertSame(20 + 30 + 15, $this->invoke('contextualCompatibility', [$a, $b, $t]));
+    }
+
+    public function test_intersection_partielle_clubs_donne_15(): void
+    {
+        $clubA = Club::factory()->create();
+        $clubB = Club::factory()->create();
+        $clubC = Club::factory()->create();
+        // a joue à {A, B}, b joue à {B, C} → 1 club commun (B) → 15 pts.
+        $a = $this->makeUser(['position' => 'both'], [], [$clubA->id, $clubB->id]);
+        $b = $this->makeUser(['position' => 'both'], [], [$clubB->id, $clubC->id]);
+        $t = Tournament::factory()->create();
+
+        $this->assertSame(20 + 30 + 15, $this->invoke('contextualCompatibility', [$a, $b, $t]));
+    }
+
+    public function test_flexible_match_tous_slots_autre(): void
+    {
+        // a Flexible + b a 3 slots concrets → overlap 3 → 25 pts dispos.
+        $a = $this->makeUser(['position' => 'both'], [['day_of_week' => null, 'period' => 'all']]);
+        $b = $this->makeUser(['position' => 'both'], [1, 2, 3]);
+        $t = Tournament::factory()->create();
+
+        $this->assertSame(20 + 30 + 25, $this->invoke('contextualCompatibility', [$a, $b, $t]));
+    }
+
+    public function test_overlap_tuples_day_period_strict(): void
+    {
+        // a dispo lundi soir, b dispo lundi matin → 0 slot commun malgré même jour.
+        $a = $this->makeUser(['position' => 'both'], [['day_of_week' => 1, 'period' => 'evening']]);
+        $b = $this->makeUser(['position' => 'both'], [['day_of_week' => 1, 'period' => 'morning']]);
+        $t = Tournament::factory()->create();
+
+        $this->assertSame(20 + 30 + 0, $this->invoke('contextualCompatibility', [$a, $b, $t]));
     }
 
     public function test_normalize_pair_returns_min_max(): void

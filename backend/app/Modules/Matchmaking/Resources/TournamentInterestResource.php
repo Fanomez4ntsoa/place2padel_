@@ -20,12 +20,13 @@ class TournamentInterestResource extends JsonResource
         $isAuthenticated = $request->user() !== null;
 
         $user = $this->user;
+        $primaryClub = $user?->clubs->firstWhere('priority', 1)?->club;
         $payload = [
             'user' => [
                 'uuid' => $user?->uuid,
                 'name' => $user?->name,
                 'picture_url' => $user?->picture_url,
-                'club' => $user?->club ? ['name' => $user->club->name, 'city' => $user->club->city] : null,
+                'club' => $primaryClub ? ['name' => $primaryClub->name, 'city' => $primaryClub->city] : null,
             ],
             'created_at' => $this->created_at,
         ];
@@ -37,8 +38,12 @@ class TournamentInterestResource extends JsonResource
             $payload['user']['position'] = $user?->profile?->position;
             $payload['user']['padel_points'] = $user?->profile?->padel_points;
             $payload['user']['ranking'] = $user?->profile?->ranking;
+            // Tuples {day_of_week, period} — day_of_week null = Flexible.
             $payload['user']['availabilities'] = $user?->availabilities
-                ? $user->availabilities->pluck('day_of_week')->all()
+                ? $user->availabilities->map(fn ($av) => [
+                    'day_of_week' => $av->day_of_week,
+                    'period' => $av->period,
+                ])->values()->all()
                 : [];
         }
 

@@ -21,8 +21,9 @@ class ShowProfileTest extends TestCase
             'last_name' => 'Dupont',
             'name' => 'Jean Dupont',
             'city' => 'Paris',
-            'club_id' => $club->id,
         ]);
+
+        $user->clubs()->create(['club_id' => $club->id, 'priority' => 1]);
 
         $user->profile()->create([
             'bio' => 'Joueur du dimanche',
@@ -36,7 +37,7 @@ class ShowProfileTest extends TestCase
         ]);
         $user->preferredLevels()->create(['level' => 'P100']);
         $user->preferredLevels()->create(['level' => 'P250']);
-        $user->availabilities()->create(['day_of_week' => 3]);
+        $user->availabilities()->create(['day_of_week' => 3, 'period' => 'evening']);
 
         return $user;
     }
@@ -59,7 +60,8 @@ class ShowProfileTest extends TestCase
             ->assertJsonPath('data.padel_level', 3)
             ->assertJsonPath('data.ranking', 1234)
             ->assertJsonPath('data.padel_points', 8500)
-            ->assertJsonPath('data.club.name', 'Padel Club Paris');
+            ->assertJsonPath('data.clubs.0.name', 'Padel Club Paris')
+            ->assertJsonPath('data.clubs.0.priority', 1);
 
         // Champs privés absents
         $response->assertJsonMissingPath('data.email')
@@ -82,7 +84,8 @@ class ShowProfileTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.preferred_levels', ['P100', 'P250'])
-            ->assertJsonPath('data.availabilities', [3])
+            ->assertJsonPath('data.availabilities.0.day_of_week', 3)
+            ->assertJsonPath('data.availabilities.0.period', 'evening')
             // Toujours pas de champs self
             ->assertJsonMissingPath('data.email')
             ->assertJsonMissingPath('data.license_number')

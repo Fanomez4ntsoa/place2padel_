@@ -108,9 +108,9 @@ class UpdateProfileTest extends TestCase
     {
         [, $token] = $this->authUser();
 
-        $this->call_patch($token, ['club_uuid' => '00000000-0000-7000-8000-000000000000'])
+        $this->call_patch($token, ['clubs' => ['00000000-0000-7000-8000-000000000000']])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['club_uuid']);
+            ->assertJsonValidationErrors(['clubs.0']);
     }
 
     public function test_inactive_club_returns_422(): void
@@ -118,9 +118,78 @@ class UpdateProfileTest extends TestCase
         [, $token] = $this->authUser();
         $club = Club::factory()->inactive()->create();
 
-        $this->call_patch($token, ['club_uuid' => $club->uuid])
+        $this->call_patch($token, ['clubs' => [$club->uuid]])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['club_uuid']);
+            ->assertJsonValidationErrors(['clubs.0']);
+    }
+
+    public function test_more_than_3_clubs_returns_422(): void
+    {
+        [, $token] = $this->authUser();
+        $clubs = Club::factory()->count(4)->create();
+
+        $this->call_patch($token, ['clubs' => $clubs->pluck('uuid')->all()])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['clubs']);
+    }
+
+    public function test_multi_clubs_replace_semantic(): void
+    {
+        [$user, $token] = $this->authUser();
+        $clubA = Club::factory()->create();
+        $clubB = Club::factory()->create();
+        $clubC = Club::factory()->create();
+
+        $this->call_patch($token, ['clubs' => [$clubA->uuid, $clubB->uuid, $clubC->uuid]])
+            ->assertOk();
+
+        $user->load('clubs');
+        $this->assertSame(3, $user->clubs->count());
+        $this->assertSame([1, 2, 3], $user->clubs->pluck('priority')->sort()->values()->all());
+
+        // Replace avec 1 seul club → les 2 autres disparaissent.
+        $this->call_patch($token, ['clubs' => [$clubB->uuid]])->assertOk();
+        $user->load('clubs');
+        $this->assertSame(1, $user->clubs->count());
+        $this->assertSame($clubB->id, $user->clubs->first()->club_id);
+        $this->assertSame(1, $user->clubs->first()->priority);
+    }
+
+    public function test_availabilities_flexible_slot(): void
+    {
+        [$user, $token] = $this->authUser();
+
+        $this->call_patch($token, [
+            'availabilities' => [
+                ['day_of_week' => 1, 'period' => 'evening'],
+                ['day_of_week' => null, 'period' => 'all'],
+            ],
+        ])->assertOk();
+
+        $user->load('availabilities');
+        $this->assertSame(2, $user->availabilities->count());
+        $flex = $user->availabilities->firstWhere('day_of_week', null);
+        $this->assertNotNull($flex);
+        $this->assertSame('all', $flex->period);
+    }
+
+    public function test_availabilities_invalid_day_period_combo(): void
+    {
+        [, $token] = $this->authUser();
+
+        // day_of_week null avec period != 'all' → invalide (seul Flexible est autorisé).
+        $this->call_patch($token, [
+            'availabilities' => [
+                ['day_of_week' => null, 'period' => 'evening'],
+            ],
+        ])->assertStatus(422);
+
+        // day_of_week 3 avec period 'all' → invalide (all réservé Flexible).
+        $this->call_patch($token, [
+            'availabilities' => [
+                ['day_of_week' => 3, 'period' => 'all'],
+            ],
+        ])->assertStatus(422);
     }
 
     public function test_no_token_returns_401(): void
