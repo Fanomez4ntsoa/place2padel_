@@ -119,6 +119,16 @@ class User extends Authenticatable
         return $this->hasMany(PushSubscription::class);
     }
 
+    public function elo(): HasOne
+    {
+        return $this->hasOne(UserElo::class);
+    }
+
+    public function friendlyMatchParticipations(): HasMany
+    {
+        return $this->hasMany(FriendlyMatchParticipant::class);
+    }
+
     public function tournamentInterests(): HasMany
     {
         return $this->hasMany(TournamentInterest::class);
