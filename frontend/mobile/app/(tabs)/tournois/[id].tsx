@@ -1,10 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
+  Bell,
+  BellOff,
   Calendar,
   Clock,
+  CreditCard,
   MapPin,
   QrCode,
+  Share2,
+  Trash2,
   Trophy,
   UserPlus,
   Users,
@@ -21,21 +26,29 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BracketView } from '@/components/matches/BracketView';
 import { MatchRow } from '@/components/matches/MatchRow';
 import { PoolCard } from '@/components/matches/PoolCard';
 import { RankingList } from '@/components/matches/RankingList';
 import { Tabs } from '@/components/common/Tabs';
+import { RegisterPartnerPicker } from '@/components/tournois/RegisterPartnerPicker';
 import { TournamentDetailSkeleton } from '@/components/tournois/TournamentListSkeleton';
 import { TournamentQrModal } from '@/components/tournois/TournamentQrModal';
+import { TournamentSalon } from '@/components/tournois/TournamentSalon';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text } from '@/design-system';
+import type { Club } from '@/features/clubs/types';
+import { useMyClubs, useToggleClubSubscription } from '@/features/clubs/useClubs';
 import { formatApiError } from '@/lib/api';
+import type { TournamentMatch } from '@/features/matches/types';
 import {
+  useForfeitMatch,
   useTournamentMatches,
   useTournamentPools,
   useTournamentRanking,
@@ -43,6 +56,7 @@ import {
 import { useCheckoutStatus, useCreateCheckout } from '@/features/payments/usePayments';
 import type { TournamentStatus } from '@/features/tournaments/types';
 import {
+  useDeleteTournament,
   useLaunchTournament,
   useMySeekingTournaments,
   useRegisterTeam,
@@ -54,7 +68,7 @@ import {
 
 const SEEKING_MESSAGE_MAX = 500;
 
-type TabKey = 'infos' | 'teams' | 'seeking' | 'matches' | 'pools' | 'ranking';
+type TabKey = 'infos' | 'teams' | 'seeking' | 'salon' | 'matches' | 'pools' | 'ranking' | 'bracket';
 
 const STATUS: Record<
   TournamentStatus,
@@ -85,6 +99,9 @@ export default function TournamentDetailScreen() {
   const toggleSeekingMut = useToggleSeeking(id);
   const createCheckoutMut = useCreateCheckout();
   const launchMut = useLaunchTournament(id);
+  const deleteMut = useDeleteTournament(id);
+  const myClubsQuery = useMyClubs();
+  const toggleClubSubMut = useToggleClubSubscription();
   const matchesQuery = useTournamentMatches(id);
   const poolsQuery = useTournamentPools(id);
   const rankingQuery = useTournamentRanking(id);
@@ -96,15 +113,16 @@ export default function TournamentDetailScreen() {
   const [seekingModalOpen, setSeekingModalOpen] = useState(false);
   const [seekingMessage, setSeekingMessage] = useState('');
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [partnerPickerOpen, setPartnerPickerOpen] = useState(false);
 
   // Auto-switch du tab si la liste des tabs visibles change.
-  // open/full      : [infos, teams, seeking]
-  // in_progress/completed : [matches, pools, ranking]
+  // open/full            : [infos, teams, seeking, salon]
+  // in_progress/completed : [matches, pools, ranking, salon]
   const tournamentStatus = tournament?.status;
   const isLaunched =
     tournamentStatus === 'in_progress' || tournamentStatus === 'completed';
-  const LAUNCHED_TABS: readonly TabKey[] = ['matches', 'pools', 'ranking'];
-  const OPEN_TABS: readonly TabKey[] = ['infos', 'teams', 'seeking'];
+  const LAUNCHED_TABS: readonly TabKey[] = ['matches', 'pools', 'bracket', 'ranking', 'salon'];
+  const OPEN_TABS: readonly TabKey[] = ['infos', 'teams', 'seeking', 'salon'];
   useEffect(() => {
     if (!tournamentStatus) return;
     if (isLaunched && !LAUNCHED_TABS.includes(tab)) {
@@ -135,16 +153,38 @@ export default function TournamentDetailScreen() {
   // viewer côté backend pour ne pas se proposer à soi-même).
   const isSeeking = !!mySeekingQuery.data?.some((e) => e.tournament.uuid === id);
 
-  const handleRegister = async () => {
-    // Si tournoi online payant → Stripe Checkout.
+  // Autorisation écriture salon — alignée CreatePostController:24-31 :
+  // organizer | admin | captain ou partner d'une team registered.
+  const isOrganizer = tournament.creator?.uuid === user?.uuid;
+  const isAdmin = user?.role === 'admin';
+  const canPostSalon = !!user && (isOrganizer || isAdmin || isRegistered);
+
+  // Parse prix — Emergent regex `(tournament?.price || '').replace(/[^\d.,]/g,'')`.
+  // Renvoie null si aucun prix parsable (ex: "" ou "Gratuit").
+  const priceAmount = (() => {
+    if (!tournament.price) return null;
+    const cleaned = tournament.price.replace(/[^\d.,]/g, '').replace(',', '.');
+    const parsed = parseFloat(cleaned);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  })();
+  const priceLabel = priceAmount !== null ? `${priceAmount.toFixed(0)}€` : null;
+  const hasPaidEntry = priceLabel !== null;
+  const isOnlinePayment = hasPaidEntry && tournament.payment_method === 'online';
+
+  // Soumission finale — appelée par le partner picker après choix d'un
+  // partenaire (ou null si "S'inscrire seul"). Route Stripe si online payant.
+  const submitRegistration = async (partnerUuid: string | null) => {
     if (tournament && tournament.payment_method === 'online' && tournament.price) {
       try {
+        // NB : Stripe checkout courant ne prend pas partner_uuid (Phase 7) —
+        // l'inscription sera faite sans partner au retour paid. TODO backend.
         const checkout = await createCheckoutMut.mutateAsync(tournament.uuid);
         if (!checkout.checkout_url) {
           Alert.alert('Erreur', 'URL Stripe indisponible.');
           return;
         }
         setCheckoutSessionId(checkout.session_id);
+        setPartnerPickerOpen(false);
         await Linking.openURL(checkout.checkout_url);
       } catch (err) {
         Alert.alert('Erreur', formatApiError(err));
@@ -152,11 +192,32 @@ export default function TournamentDetailScreen() {
       return;
     }
 
-    // Sinon on_site ou gratuit → inscription directe.
     try {
-      await registerMut.mutateAsync(undefined);
+      await registerMut.mutateAsync(partnerUuid ?? undefined);
       await refetch();
-      Alert.alert('Inscription confirmée', 'Tu peux renseigner un partenaire depuis ton profil.');
+      setPartnerPickerOpen(false);
+    } catch (err) {
+      Alert.alert('Erreur', formatApiError(err));
+    }
+  };
+
+  const handleRegister = () => {
+    // Ouvre le picker — choix partenaire obligatoire (port Emergent
+    // TournamentDetailPage.js:406-479 Dialog partner picker).
+    setPartnerPickerOpen(true);
+  };
+
+  const handleShare = async () => {
+    const shareLink = tournament.share_link ?? `/tournois/${tournament.uuid}`;
+    const message = `${tournament.name} — Tournoi ${tournament.level}${
+      tournament.club ? ` au ${tournament.club.name}` : ''
+    }${tournament.date ? ` · ${formatDateFR(tournament.date)}` : ''}`;
+    try {
+      await Share.share({
+        message: `${message}\n${shareLink}`,
+        url: shareLink,
+        title: tournament.name,
+      });
     } catch (err) {
       Alert.alert('Erreur', formatApiError(err));
     }
@@ -204,7 +265,7 @@ export default function TournamentDetailScreen() {
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Back + QR — AppHeader global prend le reste */}
+        {/* Back + Share + QR — AppHeader global prend le reste */}
         <View className="flex-row items-center justify-between px-4 pt-2 pb-1">
           <Pressable
             onPress={() => router.back()}
@@ -213,15 +274,25 @@ export default function TournamentDetailScreen() {
           >
             <ArrowLeft size={20} color="#1A2A4A" />
           </Pressable>
-          {user ? (
+          <View className="flex-row items-center gap-1">
             <Pressable
-              onPress={() => setQrModalOpen(true)}
+              onPress={handleShare}
               className="h-9 w-9 items-center justify-center rounded-full"
               hitSlop={8}
+              accessibilityLabel="Partager le tournoi"
             >
-              <QrCode size={20} color="#1A2A4A" />
+              <Share2 size={20} color="#1A2A4A" />
             </Pressable>
-          ) : null}
+            {user ? (
+              <Pressable
+                onPress={() => setQrModalOpen(true)}
+                className="h-9 w-9 items-center justify-center rounded-full"
+                hitSlop={8}
+              >
+                <QrCode size={20} color="#1A2A4A" />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {/* Titre + statut dans le contenu */}
@@ -275,6 +346,20 @@ export default function TournamentDetailScreen() {
                   {teamsCount}/{tournament.max_teams}
                 </Text>
               </View>
+              {/* Prix + mode de paiement — port Emergent
+                  TournamentDetailPage.js:344-351 (ligne CreditCard orange) */}
+              {hasPaidEntry ? (
+                <View className="flex-row items-center gap-1">
+                  <CreditCard size={13} color="#E8650A" />
+                  <Text
+                    variant="caption"
+                    className="font-heading-black text-brand-orange text-[11px]"
+                  >
+                    {priceLabel}
+                    {isOnlinePayment ? ' (Stripe)' : ' (sur place)'}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             <View className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -283,6 +368,90 @@ export default function TournamentDetailScreen() {
                 style={{ width: `${progress}%` }}
               />
             </View>
+
+            {/* Badge "Paiement sécurisé Stripe" en bas de la card si online. */}
+            {isOnlinePayment ? (
+              <View className="mt-2 self-start flex-row items-center gap-1 rounded-full border border-brand-orange/20 bg-brand-orange-light px-2.5 py-1">
+                <Text
+                  variant="caption"
+                  className="font-heading-black text-brand-orange"
+                  style={{ fontSize: 10 }}
+                >
+                  🔒 Paiement sécurisé via Stripe
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Subscribe club — port Emergent TournamentDetailPage.js:356-364.
+                Visible pour user authentifié, rapidement toggleable depuis la card
+                (évite d'aller sur /clubs/{id} pour s'abonner). */}
+            {user && tournament.club ? (
+              <Pressable
+                onPress={() => {
+                  if (!tournament.club) return;
+                  const isSub = !!myClubsQuery.data?.some(
+                    (c) => c.uuid === tournament.club!.uuid,
+                  );
+                  // ClubEmbed n'a qu'uuid/name/city — on cast en Club minimal
+                  // pour l'appel (le hook n'utilise que uuid + name.localeCompare).
+                  const clubRef = {
+                    ...tournament.club,
+                    slug: '',
+                    address: null,
+                    postal_code: null,
+                    department: null,
+                    region: null,
+                    country: 'FR',
+                    latitude: null,
+                    longitude: null,
+                    phone: null,
+                    email: null,
+                    website: null,
+                    courts_count: null,
+                    indoor: null,
+                    picture_url: null,
+                    description: null,
+                    club_type: null,
+                    owner_id: null,
+                    claimed_at: null,
+                  } as Club;
+                  toggleClubSubMut
+                    .mutateAsync({ club: clubRef, isSubscribed: isSub })
+                    .catch((err) => Alert.alert('Erreur', formatApiError(err)));
+                }}
+                disabled={toggleClubSubMut.isPending}
+                className={`mt-2 self-start flex-row items-center gap-1.5 rounded-full px-3 py-1.5 ${
+                  myClubsQuery.data?.some((c) => c.uuid === tournament.club!.uuid)
+                    ? 'border border-brand-orange/20 bg-brand-orange-light'
+                    : 'border border-brand-border bg-white'
+                }`}
+                style={{ opacity: toggleClubSubMut.isPending ? 0.5 : 1 }}
+              >
+                {myClubsQuery.data?.some((c) => c.uuid === tournament.club!.uuid) ? (
+                  <>
+                    <Bell size={11} color="#E8650A" />
+                    <Text
+                      variant="caption"
+                      className="font-heading-black text-brand-orange"
+                      style={{ fontSize: 11 }}
+                    >
+                      Alertes {tournament.club.name} activées
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <BellOff size={11} color="#64748B" />
+                    <Text
+                      variant="caption"
+                      className="font-heading"
+                      style={{ fontSize: 11, color: '#64748B' }}
+                    >
+                      Recevoir les alertes de {tournament.club.name}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
           </Card>
         </View>
 
@@ -305,37 +474,88 @@ export default function TournamentDetailScreen() {
           </View>
         ) : null}
 
-        {/* Lancer — owner only, status open/full, min 2 équipes */}
+        {/* Format + phase badges — owner only, affichés si tournoi lancé.
+            Emergent expose directement `tournament.format` et `tournament.phase`
+            (MongoDB) ; côté Laravel ces colonnes n'existent pas, donc on dérive
+            depuis les pools + matches déjà fetched (source de vérité locale). */}
+        {(isOrganizer || isAdmin) && isLaunched ? (
+          <View className="mx-4 mt-3 flex-row flex-wrap items-center gap-2">
+            <DerivedFormatPhaseBadges
+              status={tournament.status}
+              pools={poolsQuery.data ?? []}
+              matches={matchesQuery.data ?? []}
+            />
+          </View>
+        ) : null}
+
+        {/* Lancer + Supprimer — owner only, status open/full */}
         {tournament.creator?.uuid === user?.uuid &&
         (tournament.status === 'open' || tournament.status === 'full') ? (
-          <View className="mx-4 mt-3">
-            <Button
-              label={
-                teamsCount < 2
-                  ? `Lancer (min 2 équipes, ${teamsCount} inscrite${teamsCount > 1 ? 's' : ''})`
-                  : 'Lancer le tournoi'
-              }
-              leftIcon={<Trophy size={18} color="#FFFFFF" />}
-              disabled={teamsCount < 2 || launchMut.isPending}
-              loading={launchMut.isPending}
+          <View className="mx-4 mt-3 flex-row gap-2">
+            <View className="flex-1">
+              <Button
+                label={
+                  teamsCount < 2
+                    ? `Lancer (${teamsCount} éq.)`
+                    : 'Lancer le tournoi'
+                }
+                leftIcon={<Trophy size={18} color="#FFFFFF" />}
+                disabled={teamsCount < 2 || launchMut.isPending}
+                loading={launchMut.isPending}
+                onPress={() =>
+                  Alert.alert(
+                    'Lancer le tournoi',
+                    `Cela clôt les inscriptions et génère les matchs pour ${teamsCount} équipe${teamsCount > 1 ? 's' : ''}. Action irréversible.`,
+                    [
+                      { text: 'Annuler', style: 'cancel' },
+                      {
+                        text: 'Lancer',
+                        style: 'destructive',
+                        onPress: () =>
+                          launchMut
+                            .mutateAsync()
+                            .catch((err) => Alert.alert('Erreur', formatApiError(err))),
+                      },
+                    ],
+                  )
+                }
+              />
+            </View>
+            {/* Supprimer — port Emergent TournamentDetailPage.js:507-510.
+                Policy backend : owner|admin + status in (open|full). */}
+            <Pressable
               onPress={() =>
                 Alert.alert(
-                  'Lancer le tournoi',
-                  `Cela clôt les inscriptions et génère les matchs pour ${teamsCount} équipe${teamsCount > 1 ? 's' : ''}. Action irréversible.`,
+                  'Supprimer ce tournoi',
+                  'Cette action est définitive. Les inscriptions actuelles seront perdues.',
                   [
                     { text: 'Annuler', style: 'cancel' },
                     {
-                      text: 'Lancer',
+                      text: 'Supprimer',
                       style: 'destructive',
-                      onPress: () =>
-                        launchMut
-                          .mutateAsync()
-                          .catch((err) => Alert.alert('Erreur', formatApiError(err))),
+                      onPress: async () => {
+                        try {
+                          await deleteMut.mutateAsync();
+                          router.back();
+                        } catch (err) {
+                          Alert.alert('Erreur', formatApiError(err));
+                        }
+                      },
                     },
                   ],
                 )
               }
-            />
+              disabled={deleteMut.isPending}
+              className="h-12 w-12 items-center justify-center rounded-2xl border-2 border-red-300 bg-white"
+              style={{ opacity: deleteMut.isPending ? 0.5 : 1 }}
+              accessibilityLabel="Supprimer le tournoi"
+            >
+              {deleteMut.isPending ? (
+                <ActivityIndicator color="#EF4444" />
+              ) : (
+                <Trash2 size={18} color="#EF4444" />
+              )}
+            </Pressable>
           </View>
         ) : null}
 
@@ -353,7 +573,9 @@ export default function TournamentDetailScreen() {
                     count: matchesQuery.data?.length ?? 0,
                   },
                   { key: 'pools' as TabKey, label: 'Poules' },
+                  { key: 'bracket' as TabKey, label: 'Tableau' },
                   { key: 'ranking' as TabKey, label: 'Classement' },
+                  { key: 'salon' as TabKey, label: 'Salon' },
                 ]
               : [
                   { key: 'infos' as TabKey, label: 'Infos' },
@@ -363,6 +585,7 @@ export default function TournamentDetailScreen() {
                     label: 'Seeking',
                     count: seekingQuery.data?.meta.count ?? 0,
                   },
+                  { key: 'salon' as TabKey, label: 'Salon' },
                 ]
           }
           value={tab}
@@ -404,23 +627,94 @@ export default function TournamentDetailScreen() {
                   </Text>
                 </Card>
               ) : (
-                tournament.teams?.map((team) => (
-                  <Card key={team.id}>
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-1 pr-2">
-                        <Text variant="body-medium">{team.team_name}</Text>
-                        <Text variant="caption" className="mt-1">
-                          {team.captain.name}
-                          {team.partner ? ` / ${team.partner.name}` : ''}
+                tournament.teams?.map((team, idx) => {
+                  // Port Emergent TournamentDetailPage.js:650-668 :
+                  // - Seed 1..4 → pastille orange, TS badge
+                  // - team_points à droite en font-black orange
+                  const rank = team.seed ?? idx + 1;
+                  const isTopSeed = !!team.seed && team.seed <= 4;
+                  return (
+                    <View
+                      key={team.id}
+                      className="flex-row items-center gap-3 rounded-3xl border border-brand-border bg-white px-4 py-3"
+                    >
+                      <View
+                        className={`h-9 w-9 items-center justify-center rounded-full ${
+                          isTopSeed ? 'bg-brand-orange-light' : 'bg-slate-100'
+                        }`}
+                      >
+                        <Text
+                          className={`font-heading-black ${isTopSeed ? 'text-brand-orange' : 'text-slate-500'}`}
+                          style={{ fontSize: 13 }}
+                        >
+                          {rank}
                         </Text>
                       </View>
-                      {team.seed ? (
-                        <Badge label={`#${team.seed}`} tone="info" />
+                      <View className="flex-1">
+                        <Text variant="body-medium" className="text-[13px]" numberOfLines={1}>
+                          {team.team_name}
+                        </Text>
+                        <Text variant="caption" className="mt-0.5 text-[11px]" numberOfLines={1}>
+                          {team.captain.name}
+                          {team.partner ? ` & ${team.partner.name}` : ''}
+                        </Text>
+                      </View>
+                      <View className="items-end">
+                        <Text
+                          className="font-heading-black text-brand-orange"
+                          style={{ fontSize: 14, fontVariant: ['tabular-nums'] }}
+                        >
+                          {team.team_points}
+                        </Text>
+                        <Text variant="caption" className="text-[9px]">
+                          pts équipe
+                        </Text>
+                      </View>
+                      {isTopSeed && team.seed ? (
+                        <Badge label={`TS${team.seed}`} tone="info" />
                       ) : null}
                     </View>
-                  </Card>
-                ))
+                  );
+                })
               )}
+
+              {/* Liste d'attente — port Emergent TournamentDetailPage.js:672-686.
+                  Affichée dessous les équipes registered si waitlist présente. */}
+              {tournament.waitlist && tournament.waitlist.length > 0 ? (
+                <View className="mt-4">
+                  <Text
+                    className="mb-2 text-[11px] font-heading-black uppercase tracking-wider text-amber-600"
+                  >
+                    Liste d&apos;attente ({tournament.waitlist.length})
+                  </Text>
+                  <View className="gap-1.5">
+                    {tournament.waitlist.map((w, i) => (
+                      <View
+                        key={w.id}
+                        className="flex-row items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 px-3 py-2.5"
+                      >
+                        <View className="h-7 w-7 items-center justify-center rounded-full bg-amber-100">
+                          <Text
+                            className="font-heading-black text-amber-700"
+                            style={{ fontSize: 11 }}
+                          >
+                            {i + 1}
+                          </Text>
+                        </View>
+                        <View className="flex-1">
+                          <Text variant="body-medium" className="text-[13px]" numberOfLines={1}>
+                            {w.team_name}
+                          </Text>
+                          <Text variant="caption" className="text-[11px]" numberOfLines={1}>
+                            {w.captain.name}
+                            {w.partner ? ` & ${w.partner.name}` : ''}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -479,7 +773,7 @@ export default function TournamentDetailScreen() {
           ) : null}
 
           {tab === 'matches' ? (
-            <View className="gap-2">
+            <View className="gap-5">
               {matchesQuery.isLoading ? (
                 <ActivityIndicator color="#E8650A" />
               ) : !matchesQuery.data || matchesQuery.data.length === 0 ? (
@@ -489,17 +783,14 @@ export default function TournamentDetailScreen() {
                   </Text>
                 </Card>
               ) : (
-                matchesQuery.data.map((m) => (
-                  <MatchRow
-                    key={m.uuid}
-                    match={m}
-                    onPress={() =>
-                      router.push(
-                        `/matches/${m.uuid}?tournament=${id}` as never,
-                      )
-                    }
-                  />
-                ))
+                <MatchesGrouped
+                  matches={matchesQuery.data}
+                  tournamentUuid={tournament.uuid}
+                  isOwner={isOrganizer || isAdmin}
+                  onPressMatch={(m) =>
+                    router.push(`/matches/${m.uuid}?tournament=${id}` as never)
+                  }
+                />
               )}
             </View>
           ) : null}
@@ -520,6 +811,14 @@ export default function TournamentDetailScreen() {
             </View>
           ) : null}
 
+          {tab === 'bracket' ? (
+            matchesQuery.isLoading ? (
+              <ActivityIndicator color="#E8650A" />
+            ) : (
+              <BracketView matches={matchesQuery.data ?? []} />
+            )
+          ) : null}
+
           {tab === 'ranking' ? (
             <View>
               {rankingQuery.isLoading ? (
@@ -537,6 +836,16 @@ export default function TournamentDetailScreen() {
                 />
               )}
             </View>
+          ) : null}
+
+          {tab === 'salon' ? (
+            <TournamentSalon
+              tournamentUuid={tournament.uuid}
+              tournamentName={tournament.name}
+              canPost={canPostSalon}
+              isAuthenticated={!!user}
+              onLogin={() => router.push('/(auth)/login')}
+            />
           ) : null}
         </View>
       </ScrollView>
@@ -565,7 +874,291 @@ export default function TournamentDetailScreen() {
         visible={qrModalOpen}
         onClose={() => setQrModalOpen(false)}
       />
+
+      <RegisterPartnerPicker
+        visible={partnerPickerOpen}
+        onClose={() => setPartnerPickerOpen(false)}
+        onSubmit={(partnerUuid) => void submitRegistration(partnerUuid)}
+        submitting={registerMut.isPending || createCheckoutMut.isPending}
+        submitLabel={
+          isOnlinePayment && priceLabel
+            ? `S'inscrire — ${priceLabel}`
+            : hasPaidEntry
+              ? `S'inscrire — ${priceLabel} sur place`
+              : "S'inscrire"
+        }
+        paymentInfo={
+          hasPaidEntry && priceLabel
+            ? { method: tournament.payment_method, priceLabel }
+            : null
+        }
+        excludeUuids={[
+          user?.uuid,
+          ...(tournament.teams?.flatMap((t) =>
+            [t.captain.uuid, t.partner?.uuid ?? null].filter(Boolean),
+          ) ?? []),
+        ].filter((u): u is string => !!u)}
+      />
     </SafeAreaView>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────
+// MatchesGrouped — port Emergent TournamentDetailPage.js:773-869.
+// Sépare poule / bracket principal / reclassement avec titres orange/amber.
+// ───────────────────────────────────────────────────────────────
+
+function MatchesGrouped({
+  matches,
+  tournamentUuid,
+  isOwner,
+  onPressMatch,
+}: {
+  matches: TournamentMatch[];
+  tournamentUuid: string;
+  isOwner: boolean;
+  onPressMatch: (m: TournamentMatch) => void;
+}) {
+  // Groupement 1 : poule (par pool_uuid), bracket main, classement/consolante (par bloc).
+  const poolMatches = matches.filter((m) => m.phase === 'poule');
+  const bracketMain = matches.filter(
+    (m) => m.phase === 'bracket' && (m.bloc === 'main' || !m.bloc),
+  );
+  const classementMatches = matches.filter((m) => m.phase === 'classement');
+
+  const poolGroups = groupBy(poolMatches, (m) => m.pool_uuid ?? 'other');
+  const classementGroups = groupBy(classementMatches, (m) => m.bloc ?? 'other');
+
+  const renderMatchList = (list: TournamentMatch[]) => (
+    <View className="gap-2">
+      {list.map((m) => (
+        <OwnerMatchRow
+          key={m.uuid}
+          match={m}
+          tournamentUuid={tournamentUuid}
+          isOwner={isOwner}
+          onPress={() => onPressMatch(m)}
+        />
+      ))}
+    </View>
+  );
+
+  const blocLabel = (bloc: string): string => {
+    if (bloc === 'main') return 'Tableau principal';
+    if (bloc.startsWith('classement_R0')) return 'Classement (perdants demi-finales)';
+    if (bloc.startsWith('classement_R2')) return 'Classement (perdants quarts)';
+    if (bloc.startsWith('classement_R3')) return 'Classement (perdants 8èmes)';
+    if (bloc.startsWith('classement_R4')) return 'Classement (perdants 1er tour)';
+    if (bloc.startsWith('consolante')) return bloc.replace('consolante_', 'Consolante ');
+    return bloc.replace('classement_', 'Classement ').replace(/_/g, ' ');
+  };
+
+  return (
+    <>
+      {/* Poules — titre orange par pool */}
+      {Object.entries(poolGroups).map(([poolUuid, list]) => (
+        <View key={`pool-${poolUuid}`}>
+          <Text
+            className="mb-2 text-[11px] font-heading-black uppercase tracking-wider text-brand-orange"
+          >
+            Poule
+          </Text>
+          {renderMatchList(list)}
+        </View>
+      ))}
+
+      {/* Tableau principal — séparateurs horizontaux orange de part et d'autre */}
+      {bracketMain.length > 0 ? (
+        <View>
+          <SectionDivider label="Tableau principal" accent="#E8650A" />
+          {renderMatchList(bracketMain)}
+        </View>
+      ) : null}
+
+      {/* Reclassement / consolante — séparateur amber */}
+      {Object.keys(classementGroups).length > 0 ? (
+        <View>
+          <SectionDivider label="Reclassement" accent="#D97706" />
+          {Object.entries(classementGroups)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([bloc, list]) => (
+              <View key={`cls-${bloc}`} className="mb-3">
+                <Text
+                  className="mb-2 text-[11px] font-heading-black tracking-wider text-amber-600"
+                >
+                  {blocLabel(bloc)}
+                </Text>
+                {renderMatchList(list)}
+              </View>
+            ))}
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Port Emergent TournamentDetailPage.js:514-531 — badges "format" + "phase".
+ *
+ * Les colonnes `format`/`phase` n'existent pas côté Laravel (le MatchEngineService
+ * dérive tout à chaque requête). On les calcule ici depuis les données déjà
+ * chargées : pools + matches + status. Invariants :
+ *
+ *   - pools.length > 0 + bracket matches présents → format "poules + tableau"
+ *   - pools.length > 0 uniquement → "poules"
+ *   - bracket only → "élimination directe"
+ *
+ *   - status=completed → phase "Terminé" (emerald)
+ *   - bracket matches non tous terminés → "Tableau final" (blue)
+ *   - pool matches restants → "Phase de poules" (amber)
+ */
+function DerivedFormatPhaseBadges({
+  status,
+  pools,
+  matches,
+}: {
+  status: TournamentStatus;
+  pools: { uuid: string }[];
+  matches: TournamentMatch[];
+}) {
+  if (matches.length === 0) return null;
+
+  const hasPools = pools.length > 0;
+  const bracketMatches = matches.filter((m) => m.phase === 'bracket');
+  const poolMatches = matches.filter((m) => m.phase === 'poule');
+  const hasBracket = bracketMatches.length > 0;
+
+  const format =
+    hasPools && hasBracket
+      ? 'Poules + tableau'
+      : hasPools
+        ? 'Poules'
+        : hasBracket
+          ? 'Élimination directe'
+          : null;
+
+  let phaseLabel: string | null = null;
+  let phaseTone: 'emerald' | 'blue' | 'amber' = 'amber';
+
+  if (status === 'completed') {
+    phaseLabel = 'Terminé';
+    phaseTone = 'emerald';
+  } else {
+    const poolPending = poolMatches.some(
+      (m) => m.status === 'pending' || m.status === 'in_progress',
+    );
+    const bracketPending = bracketMatches.some(
+      (m) => m.status === 'pending' || m.status === 'in_progress',
+    );
+    if (hasBracket && !bracketPending && bracketMatches.length > 0) {
+      phaseLabel = 'Tableau terminé';
+      phaseTone = 'emerald';
+    } else if (hasBracket && bracketPending) {
+      phaseLabel = 'Tableau final';
+      phaseTone = 'blue';
+    } else if (hasPools && poolPending) {
+      phaseLabel = 'Phase de poules';
+      phaseTone = 'amber';
+    }
+  }
+
+  const toneClasses: Record<typeof phaseTone, { bg: string; text: string }> = {
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    blue: { bg: 'bg-blue-50', text: 'text-blue-700' },
+    amber: { bg: 'bg-amber-50', text: 'text-amber-700' },
+  };
+
+  if (!format && !phaseLabel) return null;
+
+  return (
+    <>
+      {format ? (
+        <View className="rounded-full bg-brand-navy/5 px-3 py-1">
+          <Text
+            variant="caption"
+            className="font-heading-black text-brand-navy"
+            style={{ fontSize: 10 }}
+          >
+            {format}
+          </Text>
+        </View>
+      ) : null}
+      {phaseLabel ? (
+        <View
+          className={`rounded-full px-3 py-1 ${toneClasses[phaseTone].bg}`}
+        >
+          <Text
+            variant="caption"
+            className={`font-heading-black ${toneClasses[phaseTone].text}`}
+            style={{ fontSize: 10 }}
+          >
+            {phaseLabel}
+          </Text>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+function SectionDivider({ label, accent }: { label: string; accent: string }) {
+  return (
+    <View className="mb-3 flex-row items-center gap-2">
+      <View style={{ height: 1, flex: 1, backgroundColor: `${accent}33` }} />
+      <Text
+        className="font-heading-black uppercase tracking-widest"
+        style={{ fontSize: 10, color: accent }}
+      >
+        {label}
+      </Text>
+      <View style={{ height: 1, flex: 1, backgroundColor: `${accent}33` }} />
+    </View>
+  );
+}
+
+function groupBy<T, K extends string>(
+  items: T[],
+  key: (item: T) => K,
+): Record<K, T[]> {
+  const map = {} as Record<K, T[]>;
+  for (const item of items) {
+    const k = key(item);
+    if (!map[k]) map[k] = [];
+    map[k].push(item);
+  }
+  return map;
+}
+
+// ───────────────────────────────────────────────────────────────
+// OwnerMatchRow — wrapper qui scope useForfeitMatch par match UUID.
+// Le hook a besoin d'un matchUuid stable, donc on ne peut pas l'appeler
+// dans une boucle. Chaque MatchRow est monté dans son propre composant.
+// ───────────────────────────────────────────────────────────────
+
+function OwnerMatchRow({
+  match,
+  tournamentUuid,
+  isOwner,
+  onPress,
+}: {
+  match: TournamentMatch;
+  tournamentUuid: string;
+  isOwner: boolean;
+  onPress: () => void;
+}) {
+  const forfeitMut = useForfeitMatch(tournamentUuid, match.uuid);
+
+  return (
+    <MatchRow
+      match={match}
+      onPress={onPress}
+      isOwner={isOwner}
+      forfeitPending={forfeitMut.isPending}
+      onForfeit={(winnerTeamId) => {
+        forfeitMut
+          .mutateAsync(winnerTeamId)
+          .catch((err) => Alert.alert('Erreur', formatApiError(err)));
+      }}
+    />
   );
 }
 

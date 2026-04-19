@@ -193,6 +193,26 @@ export interface TournamentQrData {
   club: { name: string; city: string };
 }
 
+/**
+ * DELETE /tournaments/{uuid} — owner-only. Autorisé sur open/full/in_progress,
+ * interdit sur completed côté backend. Invalide toutes les caches qui listent
+ * ce tournoi pour retirer la card immédiatement.
+ */
+export function useDeleteTournament(uuid: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await api.delete(`/tournaments/${uuid}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournaments'] });
+      qc.invalidateQueries({ queryKey: ['tournaments', 'mine'] });
+      qc.removeQueries({ queryKey: ['tournament', uuid] });
+      invalidateFeedKeys(qc);
+    },
+  });
+}
+
 export function useTournamentQr(uuid: string | undefined, enabled: boolean = true) {
   return useQuery<TournamentQrData>({
     queryKey: ['tournament-qr', uuid],
