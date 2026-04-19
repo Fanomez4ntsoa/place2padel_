@@ -19,7 +19,7 @@ class AuthService
 
     /**
      * @param  array<string,mixed>  $data
-     * @return array{user: User, token: string}
+     * @return array{user: User, access_token: string, refresh_token: string}
      */
     public function register(array $data): array
     {
@@ -64,13 +64,17 @@ class AuthService
 
         UserRegistered::dispatch($user);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // Paire access + refresh alignée sur login (mobile attend les deux tokens pour
+        // hydrater son SecureStore ; retourner un seul token legacy faisait crasher
+        // setTokens(undefined, undefined) côté mobile après un register pourtant réussi).
+        $pair = $this->issueTokenPair($user);
 
         $user->load(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
 
         return [
             'user' => $user,
-            'token' => $token,
+            'access_token' => $pair['access_token'],
+            'refresh_token' => $pair['refresh_token'],
         ];
     }
 

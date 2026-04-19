@@ -19,7 +19,8 @@ class RegisterController extends Controller
         return response()->json([
             'data' => [
                 'user' => new UserResource($result['user']),
-                'token' => $result['token'],
+                'access_token' => $result['access_token'],
+                'refresh_token' => $result['refresh_token'],
             ],
             'message' => 'Inscription réussie.',
         ], 201);
