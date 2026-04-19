@@ -60,6 +60,30 @@ export function flattenFeed(data: InfiniteData<FeedPage> | undefined): FeedPost[
 }
 
 /**
+ * GET /tournaments/{uuid}/posts — salon d'un tournoi. Auth optionnelle côté
+ * backend (liked_by_viewer = false si non authentifié). Polling 5s pour
+ * capter les nouveaux messages postés par d'autres participants — aligné sur
+ * le TournamentSalon Emergent [TournamentDetailPage.js:958-961].
+ */
+export function useTournamentPosts(tournamentUuid: string | undefined) {
+  return useInfiniteQuery<FeedPage>({
+    queryKey: ['tournament-posts', tournamentUuid],
+    enabled: !!tournamentUuid,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam = 1 }) => {
+      const { data } = await api.get(`/tournaments/${tournamentUuid}/posts`, {
+        params: { page: pageParam as number, per_page: 30 },
+      });
+      return data as FeedPage;
+    },
+    getNextPageParam: (last) =>
+      last.meta.current_page < last.meta.last_page ? last.meta.current_page + 1 : undefined,
+    staleTime: 3_000,
+    refetchInterval: 5_000,
+  });
+}
+
+/**
  * Toggle like optimiste — met à jour `liked_by_viewer` + `likes_count`
  * dans toutes les pages de feed en cache avant le retour réseau.
  *
