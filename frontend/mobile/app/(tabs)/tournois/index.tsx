@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DateRangeFilter, dateToISO } from '@/components/tournois/DateRangeFilter';
 import { LevelFilterPills } from '@/components/tournois/LevelFilterPills';
 import { TournamentCard } from '@/components/tournois/TournamentCard';
 import { TournamentListSkeleton } from '@/components/tournois/TournamentListSkeleton';
@@ -23,10 +24,18 @@ export default function TournoisListScreen() {
   const [city, setCity] = useState<string>((user?.['city'] as string | undefined) ?? '');
   const [radius, setRadius] = useState<number>(30);
   const [level, setLevel] = useState<TournamentLevel | ''>('');
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
 
   const filters = useMemo(
-    () => ({ city, level, perPage: 20 }),
-    [city, level],
+    () => ({
+      city,
+      level,
+      dateFrom: dateFrom ? dateToISO(dateFrom) : undefined,
+      dateTo: dateTo ? dateToISO(dateTo) : undefined,
+      perPage: 20,
+    }),
+    [city, level, dateFrom, dateTo],
   );
 
   const query = useTournaments(filters);
@@ -42,6 +51,8 @@ export default function TournoisListScreen() {
     setCity('');
     setRadius(30);
     setLevel('');
+    setDateFrom(null);
+    setDateTo(null);
   };
 
   const renderItem = useCallback(
@@ -66,6 +77,12 @@ export default function TournoisListScreen() {
         onRadiusChange={setRadius}
       />
       <LevelFilterPills value={level} onChange={setLevel} />
+      <DateRangeFilter
+        from={dateFrom}
+        to={dateTo}
+        onChangeFrom={setDateFrom}
+        onChangeTo={setDateTo}
+      />
 
       {city.trim().length > 0 ? (
         <View className="mx-5 mb-3 flex-row items-center gap-1.5 rounded-xl bg-brand-orange-light px-3.5 py-2">
@@ -109,7 +126,7 @@ export default function TournoisListScreen() {
   );
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <FlatList
         data={tournaments}
         keyExtractor={(t) => t.uuid}
