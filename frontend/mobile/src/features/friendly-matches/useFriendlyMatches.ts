@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { invalidateFeedKeys } from '@/lib/invalidations';
 
 import type {
   FriendlyMatch,
@@ -53,6 +54,7 @@ export function useCreateFriendlyMatch() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['friendly-matches', 'my'] });
+      invalidateFeedKeys(qc);
     },
   });
 }
@@ -126,6 +128,8 @@ export function useValidateFriendlyMatch(uuid: string) {
       match.team1.concat(match.team2).forEach((p) => {
         if (p.user) qc.invalidateQueries({ queryKey: ['user-elo', p.user.uuid] });
       });
+      // La validation finale déclenche un post système de résultat.
+      invalidateFeedKeys(qc);
     },
   });
 }

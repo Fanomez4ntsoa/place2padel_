@@ -31,6 +31,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AccountRoleCardsList, AccountRole } from '@/components/auth/AccountRoleCards';
+import { CreatePostSheet } from '@/components/feed/CreatePostSheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button, Card, Text, useFadeInUp } from '@/design-system';
 import { formatApiError } from '@/lib/api';
@@ -165,6 +166,7 @@ function CockpitPlayer({
 }) {
   const router = useRouter();
   const fade = useFadeInUp(0);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   // Données dashboard — hooks cached TanStack Query (staleTime 30-60s).
   const { data: profile } = useProfile(userUuid);
@@ -272,7 +274,7 @@ function CockpitPlayer({
           <Button
             label="Nouveau post"
             leftIcon={<Plus size={18} color="#FFFFFF" />}
-            onPress={() => router.push(`/profil/${userUuid}`)}
+            onPress={() => setComposeOpen(true)}
           />
 
           {/* ── VacationCard ── */}
@@ -347,6 +349,8 @@ function CockpitPlayer({
           />
         </Animated.View>
       </ScrollView>
+
+      <CreatePostSheet visible={composeOpen} onClose={() => setComposeOpen(false)} />
     </SafeAreaView>
   );
 }

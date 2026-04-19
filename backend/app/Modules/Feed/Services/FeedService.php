@@ -49,10 +49,12 @@ class FeedService
         ?string $text,
         ?string $imageUrl,
         ?Tournament $tournament,
+        ?string $postType = null,
     ): Post {
         return Post::create([
             'author_id' => $author->id,
             'type' => Post::TYPE_USER,
+            'post_type' => $postType,
             'text' => $text,
             'image_url' => $imageUrl,
             'tournament_id' => $tournament?->id,
@@ -60,16 +62,40 @@ class FeedService
     }
 
     /**
-     * Post système — créé par les listeners (TournamentCreated / Completed).
-     * Le créateur du tournoi devient l'author par convention (simplifie la projection UI).
+     * Post système — créé par les listeners (TournamentCreated / Completed,
+     * UserRegistered, FriendlyMatchCompleted…).
+     *
+     * - `$type` = coarse category (system_* | user) utilisée par le FeedService.
+     * - `$postType` = fine classification Emergent-compatible (new_player,
+     *   match_result…) utilisée pour l'affichage côté mobile.
+     * - `$metadata` = payload JSON libre dépendant du post_type
+     *   (post_player_info, post_match_info, …).
+     * - `$aspect` = hint ratio image côté UI.
+     *
+     * `$tournament` et `$imageUrl` restent optionnels (welcome post + match
+     * amical n'ont pas de tournoi / d'image initiale).
+     *
+     * @param  array<string,mixed>|null  $metadata
      */
-    public function createSystemPost(string $type, Tournament $tournament, User $author, string $text): Post
-    {
+    public function createSystemPost(
+        string $type,
+        User $author,
+        string $text,
+        ?Tournament $tournament = null,
+        ?string $postType = null,
+        ?array $metadata = null,
+        ?string $aspect = null,
+        ?string $imageUrl = null,
+    ): Post {
         return Post::create([
             'author_id' => $author->id,
             'type' => $type,
+            'post_type' => $postType,
             'text' => $text,
-            'tournament_id' => $tournament->id,
+            'image_url' => $imageUrl,
+            'metadata' => $metadata,
+            'post_aspect' => $aspect,
+            'tournament_id' => $tournament?->id,
         ]);
     }
 

@@ -10,6 +10,7 @@ import {
   MapPin,
   MessageCircle,
   Pencil,
+  Plus,
   Search,
   Trophy,
   X,
@@ -29,6 +30,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CommentsSheet } from '@/components/feed/CommentsSheet';
+import { CreatePostSheet } from '@/components/feed/CreatePostSheet';
+import { aspectRatioFor } from '@/components/feed/postAspect';
 import { EloCard } from '@/components/friendly-matches/EloCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Input, Text } from '@/design-system';
@@ -151,7 +154,7 @@ export default function ProfileScreen() {
         name: `avatar.${uriExt}`,
         type,
       });
-      showToast('Photo mise à jour ✅', 'success');
+      showToast('Photo de profil mise à jour', 'success');
     } catch (err) {
       Alert.alert('Erreur', formatApiError(err));
     }
@@ -820,51 +823,72 @@ function HistoryRow({ entry }: { entry: MatchHistoryEntry }) {
 // Port ProfilePage.js Emergent d5ac086 (section Posts).
 // ───────────────────────────────────────────────────────────────────
 function ProfilePostsTab({ uuid, isSelf }: { uuid: string; isSelf: boolean }) {
-  const router = useRouter();
   const postsQuery = useProfilePosts(uuid);
   const toggleLikeMut = useToggleLikeProfile();
   const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const posts = flattenFeed(postsQuery.data);
 
+  // Composer card (own profile only) — CTA ouvre la CreatePostSheet partagée
+  // avec /actualites et Cockpit. Affiché au-dessus de la liste OU dans l'empty
+  // state pour rester visible dans les deux cas.
+  const composerCard = isSelf ? (
+    <View className="mx-5 mt-4">
+      <Pressable
+        onPress={() => setComposeOpen(true)}
+        className="flex-row items-center gap-3 rounded-2xl border border-brand-border bg-white px-4 py-3"
+      >
+        <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-orange-light">
+          <Plus size={18} color="#E8650A" />
+        </View>
+        <Text variant="caption" className="flex-1 text-[13px]">
+          Partage une actualité, une photo, un résultat…
+        </Text>
+      </Pressable>
+    </View>
+  ) : null;
+
   if (postsQuery.isLoading) {
     return (
-      <View className="items-center py-10">
-        <ActivityIndicator color="#E8650A" />
-      </View>
+      <>
+        {composerCard}
+        <View className="items-center py-10">
+          <ActivityIndicator color="#E8650A" />
+        </View>
+      </>
     );
   }
 
   if (posts.length === 0) {
     return (
-      <View className="mx-5 mt-4">
-        <Card>
-          <View className="items-center py-4">
-            <Heart size={24} color="#CBD5E1" />
-            <Text variant="body-medium" className="mt-2 text-[14px]">
-              Aucun post
-            </Text>
-            <Text variant="caption" className="mt-1 text-center">
-              {isSelf
-                ? "Publie ta première actualité depuis le fil d'accueil."
-                : "Cet utilisateur n'a encore rien publié."}
-            </Text>
-            {isSelf ? (
-              <Pressable
-                onPress={() => router.push('/(tabs)/actualites' as never)}
-                className="mt-3 rounded-full bg-brand-orange px-4 py-2"
-              >
-                <Text className="font-heading text-[12px] text-white">Publier un post →</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </Card>
-      </View>
+      <>
+        {composerCard}
+        <View className="mx-5 mt-4">
+          <Card>
+            <View className="items-center py-4">
+              <Heart size={24} color="#CBD5E1" />
+              <Text variant="body-medium" className="mt-2 text-[14px]">
+                Aucun post
+              </Text>
+              <Text variant="caption" className="mt-1 text-center">
+                {isSelf
+                  ? 'Publie ta première actualité via le bouton ci-dessus.'
+                  : "Cet utilisateur n'a encore rien publié."}
+              </Text>
+            </View>
+          </Card>
+        </View>
+        {isSelf ? (
+          <CreatePostSheet visible={composeOpen} onClose={() => setComposeOpen(false)} />
+        ) : null}
+      </>
     );
   }
 
   return (
     <>
+      {composerCard}
       <View className="mx-5 mt-4 gap-3">
         {posts.map((post) => (
           <ProfilePostCard
@@ -879,6 +903,9 @@ function ProfilePostsTab({ uuid, isSelf }: { uuid: string; isSelf: boolean }) {
         postUuid={openCommentsFor}
         onClose={() => setOpenCommentsFor(null)}
       />
+      {isSelf ? (
+        <CreatePostSheet visible={composeOpen} onClose={() => setComposeOpen(false)} />
+      ) : null}
     </>
   );
 }
@@ -933,11 +960,11 @@ function ProfilePostCard({
         </View>
       </View>
 
-      {/* Image */}
+      {/* Image — ratio piloté par post_aspect (square=1, landscape=16/9, default=4/5) */}
       {post.image_url ? (
         <Image
           source={post.image_url}
-          style={{ width: '100%', aspectRatio: 4 / 5 }}
+          style={{ width: '100%', aspectRatio: aspectRatioFor(post.post_aspect) }}
           contentFit="cover"
         />
       ) : null}

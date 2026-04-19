@@ -7,6 +7,8 @@ use App\Models\Tournament;
 use App\Models\TournamentTeam;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PostTest extends TestCase
@@ -36,6 +38,43 @@ class PostTest extends TestCase
         $u = User::factory()->create();
         $this->postJson('/api/v1/posts', ['image_url' => 'https://example.com/x.png'], $this->headers($u))
             ->assertSuccessful();
+    }
+
+    public function test_post_with_uploaded_image_file(): void
+    {
+        // Utilise le disque 'avatars' (même config que /profile/photo),
+        // alias 'public' en test via phpunit.xml → AVATAR_DISK=public.
+        Storage::fake(config('filesystems.avatars', 's3'));
+
+        $u = User::factory()->create();
+        $file = UploadedFile::fake()->image('post.jpg', 800, 1000);
+
+        $res = $this->post(
+            '/api/v1/posts',
+            ['image' => $file, 'text' => 'Match du week-end'],
+            array_merge($this->headers($u), ['Accept' => 'application/json']),
+        );
+
+        $res->assertSuccessful();
+        $this->assertSame(1, Post::count());
+
+        $post = Post::first();
+        $this->assertNotNull($post->image_url);
+        // L'URL retournée par Storage::url inclut le path posts/{uuid}/...
+        $this->assertStringContainsString('posts/'.$u->uuid.'/', $post->image_url);
+    }
+
+    public function test_post_rejects_image_too_large(): void
+    {
+        $u = User::factory()->create();
+        // 6 MB > limite 5120 KB
+        $file = UploadedFile::fake()->create('huge.jpg', 6 * 1024, 'image/jpeg');
+
+        $this->post(
+            '/api/v1/posts',
+            ['image' => $file],
+            array_merge($this->headers($u), ['Accept' => 'application/json']),
+        )->assertStatus(422);
     }
 
     public function test_post_without_text_or_image_422(): void

@@ -5,6 +5,8 @@ import { Image, Pressable, View } from 'react-native';
 import { Text } from '@/design-system';
 import type { FeedPost } from '@/features/feed/types';
 
+import { aspectRatioFor } from './postAspect';
+
 interface Props {
   post: FeedPost;
   onToggleLike: () => void;
@@ -60,11 +62,11 @@ export function PostCard({ post, onToggleLike, onOpenComments }: Props) {
         </Text>
       </View>
 
-      {/* Image 4/5 */}
+      {/* Image — ratio piloté par post_aspect (square=1, landscape=16/9, default=4/5) */}
       {post.image_url ? (
         <Image
           source={{ uri: post.image_url }}
-          style={{ width: '100%', aspectRatio: 4 / 5 }}
+          style={{ width: '100%', aspectRatio: aspectRatioFor(post.post_aspect) }}
           resizeMode="cover"
         />
       ) : null}
