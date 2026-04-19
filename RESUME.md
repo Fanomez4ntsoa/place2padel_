@@ -10,66 +10,109 @@ Je travaille avec Claude (architecte/consultant) et Claude Code (implémenteur).
 
 ---
 
-## 📋 ÉTAT GLOBAL DU PROJET — MVP MOBILE COMPLET ✅
+## 📋 ÉTAT GLOBAL DU PROJET — MVP MOBILE + SYNC EMERGENT d5ac086 ✅
 
-Au **16 avril 2026 fin de session**, toute la Phase 6.2 est clôturée et tous les gaps de l'audit du 16 avril sont fermés. Le MVP mobile est prêt pour comparaison visuelle page-par-page avec Emergent 39b6544.
+Au **19 avril 2026 fin de session**, la sync Emergent d5ac086 est quasi-complète (27 commits derrière notre réf 39b6544 absorbés), le matching global amical est livré bout en bout (swipe + mutual like + écran matches), le profil a 4 tabs avec upload photo, et 12 des 13 chantiers post-MVP sont fermés. Il reste le **Lot A Feed** (création post + invalidations) avant de pouvoir lancer la comparaison visuelle page-par-page.
 
 ### Backend Laravel — 100% COMPLET ✅
-**329 tests PHPUnit verts, 1165 assertions. Tout sur `main`.**
+**400 tests PHPUnit verts, 1340 assertions. Tout sur `main`.**
 
 | Module | Endpoints | Tests |
 |--------|-----------|-------|
-| Auth | 8 | 36 |
+| Auth | 10 *(+ forgot/reset password)* | 46 |
 | User/Profile | 6 | 45 |
-| Club | 5 | 20 |
-| Tournament | 11 *(+ /tournaments/mine)* | 44 |
+| Club | 6 *(+ /clubs/claim)* | 30 |
+| Tournament | 11 | 44 |
 | Match Engine | 7 | 44 |
 | Notifications | 6 | 17 |
-| Matchmaking | 12 *(+ mark-read conversation)* | 30 |
+| Matchmaking | 15 *(+ /matching/candidates|swipe|matches)* | 56 |
 | Feed social | 9 | 24 |
 | FriendlyMatch + ELO | 13 | 30 |
 | GameProposal | 5 | 19 |
 | Payment (Stripe) | 3 | 14 |
-| **TOTAL** | **85** | **329** |
+| Waitlist | 1 | 7 |
+| **TOTAL** | **92** | **400** |
 
-### Frontend Mobile — Phase 6.2 + audit gaps ✅
-Branche : **`main`** (tout mergé, MVP complet).
-Stack : React Native + Expo SDK 54 + NativeWind v4 + TanStack Query + Reanimated 4.
+### Frontend Mobile — Sync Emergent d5ac086 + matching amical ✅
+Branche : **`main`** (tout mergé).
+Stack : React Native + Expo SDK 54 + NativeWind v4 + TanStack Query + Reanimated 4 + expo-image-picker.
 
 ---
 
-## ✅ CE QUI EST FAIT
+## ✅ CE QUI EST FAIT — SESSION 19 AVRIL
 
-### Backend
-- Phases 0 → 5.1 complètes (Auth, User, Club, Tournament, Match Engine, Notifications, Matchmaking, Feed)
-- Phase 6.2 backend : FriendlyMatch + ELO (G7), GameProposal (G8), Stripe (G9), Resend activé
-- Audit gap-closing : pivot `user_clubs` multi-clubs + `period` ENUM availabilities, `GET /tournaments/mine`, `PUT /conversations/{uuid}/read`
+### Backend (après le 16 avril)
 
-### Frontend Mobile
-- **Phase 6.1** : vertical slice MVP (auth, tournois, cockpit, profil)
-- **Phase 6.1.5** : resync Emergent 39b6544 (Register refondu, AppHeader, HomePage restaurée, Cockpit vacances, Feed, Profile, Partenaires 3 modes, Matching/Organisateurs)
-- **Phase 6.1.6** : Clubs (écran complet hors navbar)
-- **Phase 6.2 G1→G9** : Score live, Seeking partner + Proposals inbox, Chat, QR Scanner, FriendlyMatch+ELO, GameProposal, Stripe, Resend
-- **Audit gaps fermés (16 avril)** :
-  - 🔴 Wizard création tournoi 3 étapes (port Emergent) + CTA Cockpit Referee + ActionCard conditionnelle role
-  - 🔴 Cockpit Referee Messages branché
-  - 🔴 Écran `/mes-tournois` avec 3 pills (En cours / À venir / Passés) via `/tournaments/mine`
-  - 🟡 Écran `/notifications` paginé + 15 types mappés + badge Cockpit
-  - 🟡 Partenaires ActionCard activée
-  - 🟡 Édition profil étendue (3 clubs autocomplete + 10 slot dispos + position + padel_level)
-- **Chantiers additionnels** :
-  - AppHeader complet : DrawerMenu 280px + Universal Search overlay (3 requêtes parallèles, debounce 300ms) + Bell → /notifications
-  - HomePage marketing restaurée (orpheline sur une branche non mergée)
+- **Sync Emergent d5ac086** (commit `c077ada`) :
+  - `POST /auth/forgot-password` + `POST /auth/reset-password` via Laravel Password Broker + email Resend (`ResetPasswordMail`)
+  - `POST /waitlist` (auth optionnelle) — table `waitlist_entries`, 5 features enum
+  - Role `club_owner` ajouté ENUM users + colonnes `clubs.owner_id/club_type/description/picture_url/indoor/claimed_at`
+  - `POST /clubs/claim` — revendication club par role=club_owner|admin
+  - `StoreRegisterRequest` étendu : position + padel_level (1-5) + bio + clubs array + availabilities tuples (commit `d4520b9`, 18 tests PhpUnit)
+- **Fix contrat tokens register** (commit `46d3294`) — retour `{access_token, refresh_token}` aligné sur login/refresh (avant : `token` singleton → `setTokens(undefined, undefined)` crashait mobile)
+- **Matching amical global** (commit `cf75413`, Phase 4.2 backend) :
+  - Tables `swipes` (UNIQUE from+to) + `player_matches` (paire normalisée)
+  - `MatchmakingService::globalCompatibility` — algo Emergent exact (pos 30/20/8/10 · level 30/22/15/8/3 · dispos 25/18/10/2/8 · géo 15/10/2)
+  - `GET /matching/candidates` (auth optionnelle), `POST /matching/swipe`, `GET /matching/matches`
+  - Event `MatchCreated` + listener `NotifyMatchCreated` → email Resend whitelisté type `match`
+  - 26 nouveaux tests PhpUnit
+- **Fix throttle** `/profile/photo` (commit `2817932`) : 10/min → 60/min (trop strict pour tests upload)
 
-### Décisions produit actées
+### Frontend Mobile (session 19 avril)
+
+- **Sync Emergent d5ac086** (commit `c077ada`) :
+  - Écrans `app/(auth)/forgot-password.tsx` + `reset-password.tsx` avec validation Zod + lien login
+  - Waitlist dans popups `home.tsx` — input email (public) ou auto-email (auth) + toast confirmation ✅
+  - 3e carte Register "Patron de club" + `ClubOwnerForm` dédié + auto-fill city au pick
+  - `ClubsPage` : bouton "Revendiquer" si role=club_owner|admin + badge ⭐ "Patron inscrit"
+  - `ClubDetailPage` : picture 16/9 + chips owner/club_type/indoor + description + section tournois
+- **Register unifié** (commit `a71dad2`) : retrait Google OAuth UI + 3 cartes chipées identiques CockpitPreview (`AccountRoleCardsList` partagé)
+- **Register fix persistence** (commit `d4520b9`) :
+  - Availabilities migrées `number[]` → tuples `{day_of_week, period}` avec 10 SLOT_PRESETS
+  - Niveau padel 1-10 → 1-5 aligné backend
+  - ClubOwnerForm `bio` rendu (description club)
+  - Joueur : clubs 2 & 3 via `SecondaryClubPicker` (autocomplete debounce 300ms)
+  - Referee label "CLUB PRINCIPAL *" → "CLUB (OPTIONNEL)"
+- **CockpitPreview non-auth** (commit `a71dad2`) : 3 cartes chipées aux tailles Pixel 7-friendly (Joueur/Juge arbitre/Patron)
+- **Cockpit Player refonte** (commit `8ae690b`) :
+  - Hero navy avec avatar cliquable + grille 4 stats (Points FFT / Rang / Victoires / Tournois)
+  - Barre complétion profil 6 critères (photo, bio, availabilities, club, license, padel_points)
+  - Bouton "+ Nouveau post" (⚠️ placeholder — redirige vers profil)
+  - 8 ActionCards dans l'ordre exact demandé + Se déconnecter rouge (tone="danger")
+- **Cockpit Referee parité** (commit `2bd6ab2`) : hero stats (Tournois / En cours / — / —) + Mon profil · Espace organisateur · Publier · Ma page club conditionnel club_owner · CTAs réordonnés
+- **Onglet Match refonte** (commit `356e0ca`) : hero compact icône Swords + 3 stats intégrées navy, bouton "Commence la Partie" Play, card "Règles du match" bleu light + Modal 4 règles, rename section "Parties planifiées" → "Propose une partie"
+- **Matching amical mobile** (commit `58bc070`, Phase 4.2 mobile) :
+  - Hooks `useMatchingCandidates` / `useSwipeCandidate` / `useMatchingMatches`
+  - `CandidateCard` : photo 1:1 + badge compat% emerald + overlay navy + bio + grille 7 jours dispos
+  - `SwipeableCandidate` Reanimated : translateX + rotate ±15° + opacity fade (durée 250ms cubic)
+  - Post-like mutual → toast `"Match avec [name] ! 🎾"` + navigate `/conversations/{uuid}`
+  - Écran `/matching/matches` liste des matches + bouton "Discuter"
+  - Mode amical désormais fonctionnel (retrait ComingSoonSheet), default du tab
+- **Chat CTAs propositions** (commit `7f8ac32`) : 2 pills dans le header conversation :
+  - "Proposer un tournoi" → `ProposeTournamentSheet` (liste tournois `status=open` + POST propose)
+  - "Match amical" → `ProposeFriendlyMatchSheet` (interlocuteur pré-rempli comme adversaire 1 locked)
+- **Safe area bulk fix** (commit `7f8ac32`) : 14 occurrences `edges={['top']}` → `edges={[]}` sur tous les écrans (scan.tsx conservé justifié)
+- **Profil Wins/Losses** (commit `7f8ac32`) : stats Niveau/Position → Victoires (vert) / Défaites (rouge) depuis `useUserElo`
+- **AppHeader sur auth pages** (commit `f24779e`) : RootShell retire le guard `HIDE_HEADER_PREFIXES` → AppHeader visible sur login/register/forgot-password/reset-password. CTA "Inscription gratuite" masqué sur /register via `usePathname`
+- **Tournois filtres dates** (commit `1f3d837`) : `DateRangeFilter` avec 2 datepickers (date_from / date_to) + helper `dateToISO` format local. Fix empty space hero (`edges={['top']}` → `[]`)
+- **CockpitPreview typo équilibrée** (commits `3917906` + `95194b7`) : 3 cartes compactes tiennent sur Pixel 7 sans scroll
+- **Profil 4 tabs + upload photo** (commit `77a2e72`) :
+  - Bouton Camera orange sur avatar (isSelf only) → expo-image-picker + `useUploadProfilePhoto` (POST /profile/photo FormData)
+  - Tabs 2→4 : Infos / Posts / Tournois / Matchs
+  - Tab Posts : `useProfilePosts(uuid)` paginé + like + commentaires (sync caches via invalidation `['profile-posts']`)
+  - Tab Tournois (isSelf only) : 3 sections En cours / À venir / Passés via `useMyTournaments`
+
+### Décisions produit actées (rappel)
+
 - **BottomNav** : 5 onglets = Actu / Tournois / Cockpit (orange surélevé) / **Match** (Swords, remplace Clubs) / Partenaires
 - **Clubs** : accessible via routes uniquement (hors navbar)
 - **Multi-clubs** : pivot `user_clubs` avec priority 1..3, jusqu'à 3 clubs/joueur, autocomplete `/clubs/search`
 - **Availabilities** : tuples `{day_of_week, period}` avec 10 slots préset (Lun-Ven soir / Sam-Dim matin & après-midi / Flexible)
 - **Flexible généreux** : day null + period 'all' = exclusif, match tous les slots de l'autre (saturé à 3 dans le score dispos de MatchmakingService)
 - **Stripe** : paiement par tournoi (on_site / online au choix organisateur), pas d'abonnement mensuel
-- **ELO** : K=0.3, échelle 1-10, lock threshold = **10 matchs** (code Emergent fait foi vs PRD qui disait 5)
-- **Emergent référence** : commit **39b6544**
+- **ELO** : K=0.3, échelle 1-10, lock threshold = **10 matchs**
+- **Club owner** : `role='club_owner'` dans ENUM users + pivot `user_clubs` + `clubs.owner_id` (FK) ; `/clubs/claim` revendique
+- **Emergent référence** : commit **d5ac086** (dernière sync) · commit 39b6544 = baseline historique
 
 ---
 
@@ -108,33 +151,40 @@ cd ~/project/place2padel/backend && php artisan migrate:fresh --seed
 
 ## 🗓️ PROCHAINES ÉTAPES
 
-### 1. Comparaison visuelle page-par-page (prochaine session)
-Lancer mobile + web Emergent en parallèle et comparer chaque écran :
+### Priorité immédiate — Lot A Feed complet
+
+Le bouton "Nouveau post" du Cockpit Player est un placeholder (navigate `/profil/{uuid}`) ; aucun point d'entrée de création de post n'existe côté mobile. En plus, 5 invalidations de cache manquent après les actions qui déclenchent un post système backend (upload photo, création/inscription tournoi, création/validation match amical). Voir [BACKLOG.md](BACKLOG.md) Lot A.
+
+### Lots suivants
+
+- **Lot B P1** — audit visuel home.tsx + actualites.tsx vs Emergent d5ac086
+- **Lot C P2** — actions owner (DELETE post/comment) + compositeur annonces club (patron)
+- **Game Proposal UI mobile** — endpoints G8 backend prêts, UI non livrée
+- **Rename scheme** `place2padel` → `placetopadel://` (deep links post-Stripe + emails)
+
+### Comparaison visuelle page-par-page (différée jusqu'au Lot A fermé)
+
 ```bash
 # Terminal 1 — backend
 cd ~/project/place2padel/backend && php artisan serve --host=0.0.0.0 --port=8000
-
 # Terminal 2 — Horizon (pour les jobs async : emails, matchs)
 cd ~/project/place2padel/backend && php artisan horizon
-
 # Terminal 3 — mobile
 cd ~/project/place2padel/frontend/mobile && npx expo start --clear
-
 # Terminal 4 — web Emergent référence
-cd ~/project/placeToPadel/frontend && git checkout 39b6544 && yarn start
+cd ~/project/placeToPadel && git log --oneline -1  # vérifier HEAD d5ac086
+cd ~/project/placeToPadel/frontend && yarn start
 ```
 
-Pages à comparer dans l'ordre : HomePage marketing · Login/Register · Cockpit Player · Cockpit Referee · Tournois liste · Tournoi détail (3 statuts : open, in_progress, completed) · Mes tournois (3 pills) · Wizard création · Partenaires · MatchLive tournoi · Match amical + ELO · Conversations · Chat · Proposals · Profile · Notifications · Clubs · Matching · Organisateurs · HomePage grille.
+### Credentials externes en attente (non critiques MVP)
 
-Objectif : identifier les écarts visuels résiduels, layout, typos, couleurs, spacing et les corriger branche par branche.
+- **Google OAuth mobile** — GOOGLE_CLIENT_ID Android + iOS (UI masquée, backend Socialite intact)
+- **Push notifications Expo** — EAS projectId + FCM key + APNs
+- **Rename scheme** `place2padel` → `placetopadel://` (dans BACKLOG)
 
-### 2. Credentials externes en attente (non critiques MVP)
-- **G5 Google OAuth mobile** — GOOGLE_CLIENT_ID Android + iOS (CLI Cloud Console)
-- **G6 Push notifications Expo** — EAS projectId + FCM key + APNs
-- **Rename scheme `place2padel` → `placetopadel://`** — bundle identifiers package.json + app.json (deep links post-Stripe, emails)
+### Phases suivantes
 
-### 3. Phases suivantes
-- **Phase 7 — Web Next.js** : dashboard admin + landing SEO + tournois indexables Google
+- **Phase 7 — Web Next.js** : dashboard admin + landing SEO + tournois indexables Google + page retour Stripe
 - **Phase 8 — Publication** : build APK Android + IPA iOS + soumission stores
 
 ---
@@ -153,6 +203,7 @@ npx expo start --clear  # puis 'a' pour émulateur Android, 'i' iOS
 ```
 
 ### Variables .env mobile
+
 ```
 # frontend/mobile/.env (ne pas committer)
 EXPO_PUBLIC_API_URL=http://172.29.240.228:8000/api/v1
@@ -160,6 +211,7 @@ EXPO_PUBLIC_API_URL=http://172.29.240.228:8000/api/v1
 ```
 
 ### Commandes utiles
+
 ```bash
 # Re-seed complet (6 users + 2 tournois + matchs amicaux + pool/ranking)
 cd ~/project/place2padel/backend && php artisan migrate:fresh --seed
@@ -172,14 +224,19 @@ cd ~/project/place2padel/frontend/mobile && npx tsc --noEmit
 
 # Mint token debug (remplacer Alice par User ciblé)
 cd ~/project/place2padel/backend && php artisan tinker --execute="use App\Models\User; echo User::where('first_name', 'Alice')->first()->createToken('debug', ['*'])->plainTextToken;"
+
+# Reset rate limiter après changement throttle
+cd ~/project/place2padel/backend && php artisan cache:clear && php artisan config:cache
 ```
 
 ### Rebuild dev client requis si
-- **expo-camera** (G4 QR scan) → `npx expo run:android`
-- **@react-native-community/datetimepicker** (wizard création) → dispo Expo Go sans rebuild
+
+- **expo-camera** (QR scan) → `npx expo run:android`
+- **expo-image-picker** (upload avatar profil — nouveau 19/4) → `npx expo run:android` pour activer les permissions natives
+- **@react-native-community/datetimepicker** (wizard création + filtres dates tournois) → dispo Expo Go sans rebuild
 - **react-native-qrcode-svg** → dispo Expo Go
 
 ---
 
-*Dernière mise à jour : 16 avril 2026 fin de session (MVP mobile complet, prêt pour comparaison visuelle Emergent 39b6544)*
+*Dernière mise à jour : 19 avril 2026 fin de session (sync Emergent d5ac086 + matching global + profil 4 tabs + upload photo — prêt pour Lot A Feed)*
 *Vision & validation : Fanomezantsoa | Implémentation : Claude Code*
