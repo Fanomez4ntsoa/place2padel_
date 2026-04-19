@@ -26,6 +26,14 @@ export function useFriendlyMatches(status?: FriendlyStatus) {
   });
 }
 
+/**
+ * GET /friendly-matches/{uuid} — détail.
+ *
+ * Polling accéléré à 5s quand le match est `in_progress` (port Emergent
+ * FriendlyMatchLivePage.js:33 `setInterval(loadMatch, 5000)`) — les
+ * spectateurs suivent le score live. Ralenti à 30s pour les autres statuts
+ * (pending/accepted/completed/declined) — économise batterie et réseau.
+ */
 export function useFriendlyMatch(uuid: string | undefined) {
   return useQuery<FriendlyMatch>({
     queryKey: ['friendly-match', uuid],
@@ -34,8 +42,41 @@ export function useFriendlyMatch(uuid: string | undefined) {
       const { data } = await api.get(`/friendly-matches/${uuid}`);
       return data.data as FriendlyMatch;
     },
-    staleTime: 10_000,
-    refetchInterval: 10_000, // light polling — le score live peut changer côté partenaire
+    staleTime: 3_000,
+    refetchInterval: (query) => {
+      const m = query.state.data;
+      if (!m) return 10_000;
+      return m.status === 'in_progress' ? 5_000 : 30_000;
+    },
+  });
+}
+
+/**
+ * POST /friendly-matches/{uuid}/result-photo — upload photo post-match
+ * (multipart FormData `photo`). Backend contrôle participant-only et
+ * stocke l'URL dans friendly_matches.result_photo_url. Port Emergent
+ * FriendlyMatchLivePage.js:91-105.
+ */
+export function useUploadResultPhoto(uuid: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (asset: { uri: string; name: string; type: string }) => {
+      const form = new FormData();
+      form.append('photo', asset as unknown as Blob);
+      const { data } = await api.post(
+        `/friendly-matches/${uuid}/result-photo`,
+        form,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      return data.data as FriendlyMatch;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['friendly-match', uuid] });
+      qc.invalidateQueries({ queryKey: ['friendly-matches', 'my'] });
+      // Le post système match_result créé au validate est rafraîchi avec
+      // la nouvelle image — invalide le feed pour re-fetch.
+      invalidateFeedKeys(qc);
+    },
   });
 }
 

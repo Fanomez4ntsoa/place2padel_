@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Check, Flag, Minus, Plus } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,13 +11,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
 
+import { LivePulseBadge } from '@/components/matches/LivePulseBadge';
+import { MatchTimerChip } from '@/components/matches/MatchTimerChip';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
@@ -164,15 +160,19 @@ export default function MatchLiveScreen() {
               </Text>
             ) : null}
           </View>
-          {match.status === 'in_progress' ? (
-            <View className="flex-row items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1">
-              <PulseDot />
-              <Text variant="caption" className="text-[10px] font-heading-black uppercase text-red-500">
-                LIVE
-              </Text>
-            </View>
-          ) : null}
+          {match.status === 'in_progress' ? <LivePulseBadge /> : null}
         </View>
+
+        {/* Timer elapsed mm:ss — visible dès started_at rempli, figé en completed */}
+        {(match.status === 'in_progress' || match.status === 'completed') && match.started_at ? (
+          <View className="mb-3">
+            <MatchTimerChip
+              startedAtIso={match.started_at}
+              frozen={match.status === 'completed'}
+              court={match.court}
+            />
+          </View>
+        ) : null}
 
         {/* Contexte */}
         <View className="mx-4 mb-3">
@@ -203,6 +203,7 @@ export default function MatchLiveScreen() {
           <Card>
             <TeamScoreRow
               team={match.team1}
+              playerNames={lookupPlayerNames(match.team1, tournamentQuery.data)}
               games={g1}
               winner={match.winner?.id === match.team1?.id}
               canEdit={canEditScore}
@@ -216,6 +217,7 @@ export default function MatchLiveScreen() {
             </View>
             <TeamScoreRow
               team={match.team2}
+              playerNames={lookupPlayerNames(match.team2, tournamentQuery.data)}
               games={g2}
               winner={match.winner?.id === match.team2?.id}
               canEdit={canEditScore}
@@ -362,6 +364,7 @@ export default function MatchLiveScreen() {
 
 function TeamScoreRow({
   team,
+  playerNames,
   games,
   winner,
   canEdit,
@@ -369,6 +372,8 @@ function TeamScoreRow({
   onPlus,
 }: {
   team: { team_name: string; seed: number | null } | null;
+  /** Noms complets (captain & partner) affichés sous le team_name — port Emergent. */
+  playerNames?: string | null;
   games: number;
   winner: boolean;
   canEdit: boolean;
@@ -390,6 +395,11 @@ function TeamScoreRow({
         <Text variant="body-medium" className="text-[13px]" numberOfLines={1}>
           {team?.team_name ?? 'TBD'}
         </Text>
+        {playerNames ? (
+          <Text variant="caption" className="mt-0.5 text-[11px]" numberOfLines={1}>
+            {playerNames}
+          </Text>
+        ) : null}
       </View>
 
       {canEdit ? (
@@ -490,20 +500,6 @@ function TiebreakInput({
 
 // ─────────────────────────────────────────────────────────────
 
-function PulseDot() {
-  const opacity = useSharedValue(1);
-  useEffect(() => {
-    opacity.value = withRepeat(withTiming(0.3, { duration: 700 }), -1, true);
-  }, [opacity]);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return (
-    <Animated.View
-      style={style}
-      className="h-2 w-2 rounded-full bg-red-500"
-    />
-  );
-}
-
 interface Permissions {
   canScore: boolean;
   canValidateTeam1: boolean;
@@ -536,14 +532,28 @@ function computePermissions(
   const isCaptain2 = team2?.captain.uuid === userUuid;
   const isOwner = tournament.creator?.uuid === userUuid;
 
-  // canScore : STRICTEMENT membre d'une des 2 équipes (captain ou partenaire).
-  // Le owner NON-participant ne peut pas saisir le score — aligné avec le backend
-  // UpdateMatchScoreController qui n'autorise que captain_id/partner_id des 2 teams.
-  // L'organisateur a le droit de forfait (canForfeit), pas le score.
+  // canScore : participant OU organisateur (port Emergent MatchLivePage.js:96).
+  // Backend UpdateMatchScoreController autorise déjà les deux cas.
   return {
-    canScore: inTeam1 || inTeam2,
+    canScore: inTeam1 || inTeam2 || isOwner,
     canValidateTeam1: isCaptain1,
     canValidateTeam2: isCaptain2,
     canForfeit: isOwner,
   };
+}
+
+/**
+ * Helper — reconstitue la ligne `{captain} & {partner}` depuis les équipes
+ * du tournoi (pas embarqué dans MatchTeam, qui n'a que team_name + seed).
+ */
+function lookupPlayerNames(
+  team: TournamentMatch['team1'] | TournamentMatch['team2'],
+  tournament: ReturnType<typeof useTournament>['data'],
+): string | null {
+  if (!team || !tournament?.teams) return null;
+  const found = tournament.teams.find((t) => t.id === team.id);
+  if (!found) return null;
+  const captain = found.captain.name;
+  const partner = found.partner?.name;
+  return partner ? `${captain} & ${partner}` : captain;
 }

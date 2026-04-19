@@ -17,14 +17,22 @@ class UpdateMatchScoreController extends Controller
             throw new HttpException(422, 'Match non modifiable dans ce statut.');
         }
 
-        $userId = $request->user()->id;
-        $authorized = in_array($userId, array_filter([
+        $user = $request->user();
+        $userId = $user->id;
+
+        // Autorisation : capitaines + partenaires des 2 équipes OU organisateur
+        // du tournoi + admin. Port Emergent MatchLivePage.js:96 `canScore = isOwner
+        // || isPlayer1 || isPlayer2`. L'owner peut donc saisir le score même
+        // sans jouer lui-même (utile pour corriger ou initialiser à distance).
+        $isParticipant = in_array($userId, array_filter([
             $match->team1?->captain_id, $match->team1?->partner_id,
             $match->team2?->captain_id, $match->team2?->partner_id,
         ]), true);
+        $isOwner = $match->tournament->created_by_user_id === $userId
+            || $user->role === 'admin';
 
-        if (! $authorized) {
-            throw new AuthorizationException('Seuls capitaines et partenaires des deux équipes peuvent saisir le score.');
+        if (! $isParticipant && ! $isOwner) {
+            throw new AuthorizationException('Seuls capitaines, partenaires et organisateur peuvent saisir le score.');
         }
 
         $match->fill([
@@ -40,6 +48,9 @@ class UpdateMatchScoreController extends Controller
 
         if ($match->status === 'pending') {
             $match->status = 'in_progress';
+            // Timestamp de démarrage figé à la 1ère saisie — alimente le timer
+            // elapsed côté mobile (MatchLive écran).
+            $match->started_at = now();
         }
 
         $match->save();

@@ -1,5 +1,18 @@
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Check, Minus, Plus, TrendingUp, X } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Camera,
+  Check,
+  Minus,
+  Newspaper,
+  Plus,
+  TrendingDown,
+  TrendingUp,
+  Trophy,
+  X,
+} from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,19 +25,23 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LivePulseBadge } from '@/components/matches/LivePulseBadge';
+import { MatchTimerChip } from '@/components/matches/MatchTimerChip';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
-import type { FriendlyMatch } from '@/features/friendly-matches/types';
+import type { EloHistoryEntry, FriendlyMatch } from '@/features/friendly-matches/types';
 import {
   useAcceptFriendlyMatch,
   useDeclineFriendlyMatch,
   useFriendlyMatch,
   useStartFriendlyMatch,
   useSubmitFriendlyScore,
+  useUploadResultPhoto,
   useUserElo,
   useValidateFriendlyMatch,
 } from '@/features/friendly-matches/useFriendlyMatches';
+import { showToast } from '@/lib/toast';
 
 /**
  * FriendlyMatchLivePage — structure identique à MatchLive tournoi (G1) :
@@ -129,15 +146,18 @@ export default function FriendlyMatchLiveScreen() {
               {STATUS_LABEL[match.status]}
             </Text>
           </View>
-          {match.status === 'in_progress' ? (
-            <View className="flex-row items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1">
-              <View className="h-2 w-2 rounded-full bg-red-500" />
-              <Text variant="caption" className="text-[10px] font-heading-black uppercase text-red-500">
-                LIVE
-              </Text>
-            </View>
-          ) : null}
+          {match.status === 'in_progress' ? <LivePulseBadge /> : null}
         </View>
+
+        {/* Timer elapsed mm:ss — pulse live, figé en completed */}
+        {(match.status === 'in_progress' || match.status === 'completed') && match.started_at ? (
+          <View className="mb-4">
+            <MatchTimerChip
+              startedAtIso={match.started_at}
+              frozen={match.status === 'completed'}
+            />
+          </View>
+        ) : null}
 
         {/* CTA status-dependant */}
         {match.status === 'pending' && perms.isInvitee && !perms.selfAccepted ? (
@@ -172,11 +192,28 @@ export default function FriendlyMatchLiveScreen() {
 
         {match.status === 'accepted' ? (
           <View className="mx-4">
-            <Button
-              label="Démarrer le match"
-              loading={startMut.isPending}
+            <Pressable
               onPress={handleStart}
-            />
+              disabled={startMut.isPending}
+              className="h-12 items-center justify-center rounded-2xl"
+              style={{
+                backgroundColor: '#16A34A',
+                opacity: startMut.isPending ? 0.6 : 1,
+                shadowColor: '#16A34A',
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 6,
+              }}
+            >
+              {startMut.isPending ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text className="font-heading-black text-white">
+                  Démarrer le match
+                </Text>
+              )}
+            </Pressable>
           </View>
         ) : null}
 
@@ -245,9 +282,17 @@ export default function FriendlyMatchLiveScreen() {
           </View>
         ) : null}
 
-        {/* Completed + ELO impact */}
+        {/* Completed + ELO impact + photo share + footer */}
         {match.status === 'completed' ? (
-          <CompletedBlock match={match} currentUserUuid={user?.uuid ?? null} />
+          <CompletedBlock
+            match={match}
+            currentUserUuid={user?.uuid ?? null}
+            onGoHome={() => router.push('/(tabs)/match' as never)}
+            onGoProfile={() =>
+              user ? router.push(`/profil/${user.uuid}`) : router.push('/(auth)/login')
+            }
+            onGoActualites={() => router.push('/(tabs)/actualites' as never)}
+          />
         ) : null}
 
         {/* Declined */}
@@ -303,48 +348,236 @@ function teamLabel(match: FriendlyMatch, team: 1 | 2): string {
     .join(' / ') || `Équipe ${team}`;
 }
 
-// ─── ELO impact bloc ───────────────────────────────────────────
+// ─── Completed block — port Emergent FriendlyMatchLivePage.js:259-338 ───
+// 3 sections : card résultat (vert/rouge selon viewer) + ELO delta +
+// "Partager la victoire" (upload photo) + boutons footer.
 
-function CompletedBlock({ match, currentUserUuid }: { match: FriendlyMatch; currentUserUuid: string | null }) {
+function CompletedBlock({
+  match,
+  currentUserUuid,
+  onGoHome,
+  onGoProfile,
+  onGoActualites,
+}: {
+  match: FriendlyMatch;
+  currentUserUuid: string | null;
+  onGoHome: () => void;
+  onGoProfile: () => void;
+  onGoActualites: () => void;
+}) {
   const eloQuery = useUserElo(currentUserUuid ?? undefined);
-  const s = match.score;
-  const isWinnerTeam = match.team1.concat(match.team2).some(
-    (p) => p.user?.uuid === currentUserUuid && teamOfUser(match, currentUserUuid ?? '') === match.winner_team,
+  const uploadMut = useUploadResultPhoto(match.uuid);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(
+    match.result_photo_url,
   );
+
+  const s = match.score;
+  const myTeam = currentUserUuid ? teamOfUser(match, currentUserUuid) : null;
+  const isWinner = myTeam !== null && myTeam === match.winner_team;
+
+  // Retrouve l'entrée ELO pour ce match précis (elo_before → elo_after).
+  // Port Emergent FriendlyMatchLivePage.js:79-82 `history.slice(-1)[0]`,
+  // mais on match par match_uuid — plus fiable si des matchs concurrents
+  // ont validé en parallèle.
+  const eloEntry: EloHistoryEntry | null = useMemo(() => {
+    const history = eloQuery.data?.history ?? [];
+    return history.find((e) => e.match_uuid === match.uuid) ?? null;
+  }, [eloQuery.data, match.uuid]);
+
+  const pickAndUploadPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Autorisation requise', "Active l'accès aux photos dans les réglages.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+
+    const uriExt = asset.uri.split('.').pop()?.toLowerCase() ?? 'jpg';
+    const mimeMap: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+    };
+    const type = asset.mimeType ?? mimeMap[uriExt] ?? 'image/jpeg';
+
+    try {
+      const updated = await uploadMut.mutateAsync({
+        uri: asset.uri,
+        name: `match-result.${uriExt}`,
+        type,
+      });
+      setUploadedUrl(updated.result_photo_url);
+      showToast("Photo publiée dans l'actualité ✅", 'success');
+    } catch (err) {
+      Alert.alert('Erreur', formatApiError(err));
+    }
+  };
+
+  // Thème contextuel selon victoire/défaite du viewer (port Emergent :
+  // bg greenLight + border green si gagnant, bg redLight + border red si perdant).
+  const resultBg = isWinner ? 'bg-emerald-50' : 'bg-red-50';
+  const resultBorder = isWinner ? 'border-emerald-300' : 'border-red-300';
+  const resultTextColor = isWinner ? 'text-emerald-800' : 'text-red-700';
 
   return (
     <View className="mx-4 mt-3 gap-3">
-      <View className="items-center rounded-3xl border-2 border-emerald-200 bg-emerald-50 p-5">
-        <Check size={32} color="#059669" />
-        <Text variant="h3" className="mt-2 text-[16px] text-emerald-800">Match terminé</Text>
-        <Text variant="caption" className="mt-1 text-[12px] text-emerald-700">
-          Score final : {s.team1_games}–{s.team2_games}
-          {s.tiebreak_team1 !== null && s.tiebreak_team2 !== null
-            ? ` (TB ${s.tiebreak_team1}-${s.tiebreak_team2})`
-            : ''}
+      {/* ── Card résultat contextuelle ── */}
+      <View
+        className={`items-center rounded-3xl border-2 p-5 ${resultBg} ${resultBorder}`}
+      >
+        {isWinner ? (
+          <Trophy size={36} color="#D97706" fill="#F59E0B" />
+        ) : (
+          <Check size={32} color="#64748B" />
+        )}
+        <Text
+          variant="h2"
+          className={`mt-2 text-[18px] ${resultTextColor}`}
+        >
+          Match terminé !
         </Text>
-        <Text variant="body-medium" className="mt-2 text-[14px] text-emerald-800">
-          {isWinnerTeam ? '🏆 Victoire !' : 'Défaite — continue à progresser'}
+        <Text
+          variant="h1"
+          className={`mt-1 text-[24px] ${resultTextColor}`}
+          style={{ fontVariant: ['tabular-nums'] }}
+        >
+          {s.team1_games} — {s.team2_games}
         </Text>
+        {s.tiebreak_team1 !== null && s.tiebreak_team2 !== null ? (
+          <Text variant="caption" className="mt-0.5 text-[11px]">
+            Tie-break {s.tiebreak_team1} – {s.tiebreak_team2}
+          </Text>
+        ) : null}
+        {match.winner_team ? (
+          <Text variant="body-medium" className="mt-2 text-center text-[13px]">
+            {isWinner
+              ? '🏆 Tu remportes la victoire !'
+              : teamLabel(match, match.winner_team)}{' '}
+            {!isWinner ? 'remporte la partie' : ''}
+          </Text>
+        ) : null}
+
+        {/* ELO delta inline */}
+        {eloEntry ? (
+          <View className="mt-3 flex-row items-center gap-2 rounded-2xl bg-white px-4 py-2">
+            {eloEntry.elo_after >= eloEntry.elo_before ? (
+              <TrendingUp size={16} color="#16A34A" />
+            ) : (
+              <TrendingDown size={16} color="#EF4444" />
+            )}
+            <Text
+              className="font-heading-black text-[13px] text-brand-navy"
+              style={{ fontVariant: ['tabular-nums'] }}
+            >
+              Niveau {eloEntry.elo_before.toFixed(1)} → {eloEntry.elo_after.toFixed(1)}
+            </Text>
+            <Text
+              className="font-heading-black text-[13px]"
+              style={{
+                color: eloEntry.elo_after >= eloEntry.elo_before ? '#16A34A' : '#EF4444',
+                fontVariant: ['tabular-nums'],
+              }}
+            >
+              {eloEntry.elo_after >= eloEntry.elo_before ? '+' : ''}
+              {(eloEntry.elo_after - eloEntry.elo_before).toFixed(2)}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
-      {eloQuery.data ? (
-        <View className="rounded-3xl border border-brand-border bg-white p-4">
-          <View className="flex-row items-center gap-2">
-            <TrendingUp size={16} color="#E8650A" />
-            <Text variant="h3" className="text-[14px]">Ton nouvel ELO</Text>
+      {/* ── Partager la victoire — upload photo result → post système ── */}
+      <View className="rounded-3xl border border-brand-border bg-white p-4">
+        <View className="mb-3 flex-row items-center gap-2.5">
+          <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-orange-light">
+            <Camera size={16} color="#E8650A" />
           </View>
-          <Text className="mt-2 font-heading-black text-[32px] text-brand-orange">
-            {eloQuery.data.elo_level.toFixed(2)}
-          </Text>
-          {eloQuery.data.is_locked ? (
-            <Text variant="caption" className="mt-1 text-[11px]">
-              Encore {eloQuery.data.matches_to_unlock} match
-              {eloQuery.data.matches_to_unlock > 1 ? 's' : ''} pour déverrouiller ton niveau.
+          <View className="flex-1">
+            <Text variant="h3" className="text-[14px]">
+              Partager dans le fil d&apos;actu
             </Text>
-          ) : null}
+            <Text variant="caption" className="text-[11px]">
+              Le post est déjà publié — ajoute une photo !
+            </Text>
+          </View>
         </View>
-      ) : null}
+
+        {uploadedUrl ? (
+          <View className="flex-row items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+            <Check size={16} color="#059669" />
+            <Text
+              variant="caption"
+              className="flex-1 text-[12px] font-heading text-emerald-700"
+            >
+              Photo publiée dans l&apos;actualité
+            </Text>
+            <Image
+              source={uploadedUrl}
+              style={{ width: 36, height: 36, borderRadius: 8 }}
+              contentFit="cover"
+            />
+          </View>
+        ) : (
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={pickAndUploadPhoto}
+              disabled={uploadMut.isPending}
+              className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-brand-orange"
+              style={{
+                opacity: uploadMut.isPending ? 0.6 : 1,
+                shadowColor: '#E8650A',
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 6,
+              }}
+            >
+              {uploadMut.isPending ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Camera size={16} color="#FFFFFF" />
+                  <Text
+                    className="font-heading-black text-white"
+                    style={{ fontSize: 13 }}
+                  >
+                    Ajouter une photo
+                  </Text>
+                </>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={onGoActualites}
+              className="h-11 w-11 items-center justify-center rounded-2xl border border-brand-border bg-white"
+              accessibilityLabel="Voir l'actualité"
+            >
+              <Newspaper size={16} color="#64748B" />
+            </Pressable>
+          </View>
+        )}
+      </View>
+
+      {/* ── Boutons footer ── */}
+      <View className="flex-row gap-2">
+        <Pressable
+          onPress={onGoHome}
+          className="h-11 flex-1 items-center justify-center rounded-2xl bg-brand-navy"
+        >
+          <Text className="font-heading-black text-[13px] text-white">Retour</Text>
+        </Pressable>
+        <Pressable
+          onPress={onGoProfile}
+          className="h-11 flex-1 items-center justify-center rounded-2xl border border-brand-border bg-white"
+        >
+          <Text className="font-heading-black text-[13px]">Mes stats</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -436,7 +669,10 @@ function ValidationRow({
           className="h-7 items-center justify-center rounded-full bg-brand-orange px-3"
           style={{ opacity: pending ? 0.6 : 1 }}
         >
-          <Text className="font-heading-black text-[11px] text-white">Valider</Text>
+          {/* Port Emergent FriendlyMatchLivePage.js:248 — le texte "Partie
+              terminée" est plus explicite que "Valider" pour le capitaine qui
+              clôt le match (fin de partie, pas une étape intermédiaire). */}
+          <Text className="font-heading-black text-[11px] text-white">Partie terminée</Text>
         </Pressable>
       ) : (
         <Text variant="caption" className="text-[11px]">En attente</Text>
