@@ -37,7 +37,8 @@ class RegisterTest extends TestCase
             ->assertJsonStructure([
                 'data' => [
                     'user' => ['uuid', 'email', 'first_name', 'last_name', 'name', 'role', 'profile', 'preferred_levels'],
-                    'token',
+                    'access_token',
+                    'refresh_token',
                 ],
                 'message',
             ])
@@ -46,7 +47,12 @@ class RegisterTest extends TestCase
             ->assertJsonPath('data.user.name', 'Jean Dupont')
             ->assertJsonPath('data.user.preferred_levels', ['P100', 'P250']);
 
-        $this->assertNotEmpty($response->json('data.token'));
+        $this->assertNotEmpty($response->json('data.access_token'));
+        $this->assertNotEmpty($response->json('data.refresh_token'));
+        $this->assertNotSame(
+            $response->json('data.access_token'),
+            $response->json('data.refresh_token'),
+        );
 
         $user = User::where('email', 'jean.dupont@gmail.com')->first();
         $this->assertNotNull($user);
