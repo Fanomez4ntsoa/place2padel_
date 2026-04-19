@@ -1,12 +1,15 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
+  BarChart3,
   Bell,
+  Building2,
   ChevronRight,
   Heart,
   Inbox,
   LogOut,
   MessageCircle,
+  Newspaper,
   TreePalm,
   Plus,
   QrCode,
@@ -80,7 +83,12 @@ export default function CockpitScreen() {
     ]);
 
   return isReferee ? (
-    <CockpitReferee name={user.first_name ?? user.name} onLogout={handleLogout} />
+    <CockpitReferee
+      name={user.first_name ?? user.name}
+      userUuid={user.uuid}
+      role={user.role}
+      onLogout={handleLogout}
+    />
   ) : (
     <CockpitPlayer
       name={user.first_name ?? user.name}
@@ -377,46 +385,123 @@ function ExpoImageCompat({ uri }: { uri: string }) {
 // ──────────────────────────────────────────────────────────────────
 // Cockpit juge arbitre / admin
 // ──────────────────────────────────────────────────────────────────
-function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => void }) {
+function CockpitReferee({
+  name,
+  userUuid,
+  role,
+  onLogout,
+}: {
+  name?: string;
+  userUuid: string;
+  role: 'player' | 'organizer' | 'referee' | 'admin' | 'club_owner';
+  onLogout: () => void;
+}) {
   const router = useRouter();
   const fade = useFadeInUp(0);
+
+  // Données dashboard — mêmes hooks que CockpitPlayer pour cohérence.
+  const { data: profile } = useProfile(userUuid);
+  const inProgressQuery = useMyTournaments('in_progress');
+  const upcomingQuery = useMyTournaments('upcoming');
+  const completedQuery = useMyTournaments('completed');
   const { unreadNotifications } = useUnreadCounters();
   const { data: conversations } = useConversations();
   const unreadMessages = (conversations ?? []).filter((c) => c.unread_count > 0).length;
 
+  const inProgressCount = inProgressQuery.data?.pages[0]?.meta.total ?? 0;
+  const organizedTotal =
+    (upcomingQuery.data?.pages[0]?.meta.total ?? 0) +
+    inProgressCount +
+    (completedQuery.data?.pages[0]?.meta.total ?? 0);
+
+  // Club principal — si l'user est club_owner, c'est très probablement le club
+  // qu'il a revendiqué via POST /clubs/claim (priority 1 dans user_clubs).
+  const primaryClubEntry = profile?.clubs?.find((c) => (c.priority ?? 99) === 1);
+  const primaryClubName = primaryClubEntry?.name ?? null;
+  const isClubOwner = role === 'club_owner';
+
+  const heroSubtitle = primaryClubName ?? 'Juge arbitre';
+
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* ── Hero navy : avatar + label + prénom + sous-titre club + 4 stats ── */}
         <LinearGradient
           colors={['#1A2A4A', '#2A4A6A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 24, paddingTop: 32, paddingBottom: 40 }}
+          style={{ paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}
         >
-          <Text variant="caption" className="text-white/50">
-            Bonjour {name ?? ''} 👋
-          </Text>
-          <Text variant="h1" className="mt-1 text-white">
-            Cockpit arbitre
-          </Text>
-          <Text variant="caption" className="mt-2 text-white/60">
-            Gère tes tournois et les joueurs inscrits.
-          </Text>
+          <View className="mb-4 flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text variant="caption" className="text-white/40 text-[11px]">
+                Cockpit organisateur
+              </Text>
+              <Text variant="h1" className="mt-0.5 text-white">
+                {name ?? ''}
+              </Text>
+              <Text variant="caption" className="mt-0.5 text-white/60 text-[11px]">
+                {heroSubtitle}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => router.push(`/profil/${userUuid}`)}
+              className="h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white/10"
+              hitSlop={4}
+            >
+              {profile?.picture_url ? (
+                <ExpoImageCompat uri={profile.picture_url} />
+              ) : (
+                <Text className="font-heading-black text-[16px] text-white">
+                  {(name ?? '?').trim().charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+
+          {/* Grille 4 stats */}
+          <View className="flex-row gap-2">
+            <StatTile value={organizedTotal} label="Tournois" />
+            <StatTile value={inProgressCount} label="En cours" />
+            <StatTile value="—" label="Joueurs" />
+            <StatTile value="—" label="Matchs" />
+          </View>
         </LinearGradient>
 
         <Animated.View style={fade} className="-mt-6 gap-3 px-5">
-          <VacationCard />
+          {/* ── Bouton principal : créer un tournoi ── */}
           <Button
             label="Créer un tournoi"
             leftIcon={<Plus size={18} color="#FFFFFF" />}
             onPress={() => router.push('/(tabs)/tournois/creer' as never)}
           />
 
+          {/* ── VacationCard ── */}
+          <VacationCard />
+
+          {/* ── ActionCards — ordre aligné Emergent d5ac086 ── */}
           <ActionCard
             icon={Trophy}
             label="Mes tournois"
-            subtitle="Mes tournois organisés"
+            subtitle={
+              inProgressCount > 0
+                ? `${inProgressCount} en cours`
+                : 'Inscriptions, tableaux, scores'
+            }
+            count={inProgressCount}
             onPress={() => router.push('/mes-tournois' as never)}
+          />
+          <ActionCard
+            icon={BarChart3}
+            label="Espace organisateur"
+            subtitle="Gestion avancée des tournois"
+            onPress={() => router.push('/mes-tournois' as never)}
+          />
+          <ActionCard
+            icon={Newspaper}
+            label="Publier"
+            subtitle="Annonces, photos, résultats"
+            onPress={() => router.push(`/profil/${userUuid}`)}
           />
           <ActionCard
             icon={Bell}
@@ -440,6 +525,22 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
             count={unreadMessages}
             onPress={() => router.push('/conversations')}
           />
+          <ActionCard
+            icon={UserIcon}
+            label="Mon profil"
+            subtitle="Voir et éditer"
+            onPress={() => router.push(`/profil/${userUuid}`)}
+          />
+
+          {/* Ma page club — conditionnel role club_owner + club principal connu */}
+          {isClubOwner && primaryClubEntry ? (
+            <ActionCard
+              icon={Building2}
+              label="Ma page club"
+              subtitle={primaryClubName ?? 'Gérer ma page'}
+              onPress={() => router.push(`/clubs/${primaryClubEntry.uuid}`)}
+            />
+          ) : null}
 
           <ActionCard
             icon={LogOut}
