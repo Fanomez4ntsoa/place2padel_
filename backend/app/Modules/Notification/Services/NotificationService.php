@@ -24,6 +24,8 @@ class NotificationService
         // 'message' et 'proposal' (ping mineurs) restent in-app only pour éviter le spam.
         'tournament_partner',
         'proposal_response',
+        // Phase 4.2 : match mutuel (matching global amical) — email "Nouveau match".
+        'match',
     ];
 
     /**

@@ -193,4 +193,20 @@ class User extends Authenticatable
     {
         return $this->hasMany(Club::class, 'owner_id');
     }
+
+    /**
+     * Swipes émis par cet user (like/pass global matching amical).
+     */
+    public function swipesSent(): HasMany
+    {
+        return $this->hasMany(Swipe::class, 'from_user_id');
+    }
+
+    /**
+     * Swipes reçus — utile pour détecter les like mutuels.
+     */
+    public function swipesReceived(): HasMany
+    {
+        return $this->hasMany(Swipe::class, 'to_user_id');
+    }
 }
