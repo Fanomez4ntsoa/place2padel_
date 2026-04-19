@@ -337,8 +337,14 @@ Route::prefix('v1')->group(function () {
             ->name('game-proposals.start');
 
         // Stripe Phase 6.2 G9 — paiement par tournoi (user authentifié).
+        // 60/min aligné sur les autres mutations non-sensibles. 10/min était
+        // trop strict : chaque tentative d'inscription à un tournoi payant
+        // consomme 1 crédit (création session Stripe), et les allers-retours
+        // pour changer de partner dans le picker épuisent rapidement le budget.
+        // Le backend reste sûr (création session Stripe idempotente par
+        // user+tournament côté CreateCheckoutSessionController).
         Route::post('payments/checkout/create', \App\Modules\Payment\Controllers\CreateCheckoutSessionController::class)
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:60,1')
             ->name('payments.checkout.create');
         Route::get('payments/checkout/status/{sessionId}', \App\Modules\Payment\Controllers\CheckoutStatusController::class)
             ->middleware('throttle:60,1')
