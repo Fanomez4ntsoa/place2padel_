@@ -27,6 +27,7 @@ import {
 import Animated from 'react-native-reanimated';
 import { z } from 'zod';
 
+import { AccountRoleCardsList } from '@/components/auth/AccountRoleCards';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Input, Text, useFadeInUp } from '@/design-system';
 import { api, formatApiError } from '@/lib/api';
@@ -123,7 +124,8 @@ export default function RegisterScreen() {
 }
 
 // ───────────────────────────────────────────────────────────
-// Step 1 — Sélecteur accountType
+// Step 1 — Sélecteur accountType (3 cartes chipées, aligné Emergent d5ac086)
+// Composant réutilisé depuis CockpitPreview via AccountRoleCardsList.
 // ───────────────────────────────────────────────────────────
 function AccountTypeSelector({
   onPick,
@@ -132,9 +134,6 @@ function AccountTypeSelector({
   onPick: (t: AccountType) => void;
   onBack: () => void;
 }) {
-  const fade = useFadeInUp(0);
-  const fade2 = useFadeInUp(120);
-
   return (
     <View className="flex-1 bg-brand-bg">
       <ScrollView contentContainerClassName="flex-grow">
@@ -142,77 +141,20 @@ function AccountTypeSelector({
           colors={['#1A2A4A', '#2A4A6A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 24, paddingTop: 48, paddingBottom: 48 }}
+          style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 }}
         >
-          <Pressable onPress={onBack} hitSlop={8}>
-            <ArrowLeft size={22} color="#FFFFFF" />
+          <Pressable onPress={onBack} hitSlop={8} className="mb-2">
+            <ArrowLeft size={20} color="#FFFFFF" />
           </Pressable>
-          <Animated.View style={fade} className="mt-4">
-            <Text variant="caption" className="text-white/60">Inscription</Text>
-            <Text variant="h1" className="mt-1 text-white">
-              Qui es-tu ?
-            </Text>
-            <Text variant="caption" className="mt-2 text-white/70">
-              Découvre ton expérience selon ton profil.
-            </Text>
-          </Animated.View>
+          <Text className="font-heading-black text-white" style={{ fontSize: 20 }}>
+            Rejoins PlaceToPadel 🎾
+          </Text>
+          <Text className="mt-0.5 text-white/60" style={{ fontSize: 11 }}>
+            Choisis ton profil pour commencer
+          </Text>
         </LinearGradient>
 
-        <Animated.View style={fade2} className="-mt-6 gap-4 px-5">
-          <Pressable onPress={() => onPick('player')}>
-            <Card>
-              <View className="flex-row items-center gap-4">
-                <View className="h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange-light">
-                  <Swords size={26} color="#E8650A" />
-                </View>
-                <View className="flex-1">
-                  <Text variant="h3">Compétiteur</Text>
-                  <Text variant="caption">Joueur de padel</Text>
-                </View>
-                <ArrowRight size={18} color="#1A2A4A" />
-              </View>
-              <Text variant="caption" className="mt-3">
-                Trouve des tournois, inscris-toi, suis tes scores et gère tes partenaires.
-              </Text>
-            </Card>
-          </Pressable>
-
-          <Pressable onPress={() => onPick('referee')}>
-            <Card>
-              <View className="flex-row items-center gap-4">
-                <View className="h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange-light">
-                  <Trophy size={26} color="#E8650A" />
-                </View>
-                <View className="flex-1">
-                  <Text variant="h3">Juge arbitre</Text>
-                  <Text variant="caption">Organisateur</Text>
-                </View>
-                <ArrowRight size={18} color="#1A2A4A" />
-              </View>
-              <Text variant="caption" className="mt-3">
-                Crée tes tournois, gère inscriptions, génère tableaux et convocations en un clic.
-              </Text>
-            </Card>
-          </Pressable>
-
-          <Pressable onPress={() => onPick('club_owner')}>
-            <Card>
-              <View className="flex-row items-center gap-4">
-                <View className="h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
-                  <Building2 size={26} color="#1A2A4A" />
-                </View>
-                <View className="flex-1">
-                  <Text variant="h3">Patron de club</Text>
-                  <Text variant="caption">Gère la page de ton club</Text>
-                </View>
-                <ArrowRight size={18} color="#1A2A4A" />
-              </View>
-              <Text variant="caption" className="mt-3">
-                Publie des annonces, vois tes membres et tes tournois en un coup d&apos;œil.
-              </Text>
-            </Card>
-          </Pressable>
-        </Animated.View>
+        <AccountRoleCardsList onPick={onPick} />
       </ScrollView>
     </View>
   );
