@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import { invalidateFeedKeys } from '@/lib/invalidations';
 
 import type { FeedComment, FeedFilter, FeedPost } from './types';
 
@@ -99,6 +100,49 @@ export function useToggleLike(filter: FeedFilter) {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['profile-posts'] });
+    },
+  });
+}
+
+/**
+ * POST /posts — création d'un post user. Le backend accepte soit un upload
+ * multipart `image` (fichier, max 5 MB, jpg/png/webp), soit une URL déjà
+ * calculée dans `image_url` — on utilise FormData dans les deux cas pour
+ * homogénéiser l'envoi (Laravel parse indifféremment).
+ *
+ * Invalide feed + profile-posts au succès pour que le nouveau post apparaisse
+ * immédiatement dans /actualites et la tab Posts du profil.
+ */
+export interface CreatePostPayload {
+  text?: string;
+  /** Asset RN : { uri, name, type } depuis expo-image-picker. */
+  image?: { uri: string; name: string; type: string } | null;
+  tournament_uuid?: string | null;
+}
+
+export function useCreatePost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreatePostPayload) => {
+      const form = new FormData();
+      if (payload.text && payload.text.trim().length > 0) {
+        form.append('text', payload.text.trim());
+      }
+      if (payload.image) {
+        // Cast identique à useUploadProfilePhoto — RN FormData accepte
+        // { uri, name, type } mais la def DOM standard ne le connaît pas.
+        form.append('image', payload.image as unknown as Blob);
+      }
+      if (payload.tournament_uuid) {
+        form.append('tournament_uuid', payload.tournament_uuid);
+      }
+      const { data } = await api.post('/posts', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data.data as FeedPost;
+    },
+    onSuccess: () => {
+      invalidateFeedKeys(qc);
     },
   });
 }

@@ -1,9 +1,10 @@
-import { Newspaper } from 'lucide-react-native';
+import { Newspaper, Plus } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CommentsSheet } from '@/components/feed/CommentsSheet';
+import { CreatePostSheet } from '@/components/feed/CreatePostSheet';
 import { FeedFilterPills } from '@/components/feed/FeedFilterPills';
 import { PostCard } from '@/components/feed/PostCard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +18,7 @@ export default function ActualitesScreen() {
 
   const [filter, setFilter] = useState<FeedFilter>('all');
   const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const feedQuery = useFeed(filter);
   const toggleLike = useToggleLike(filter);
@@ -95,6 +97,27 @@ export default function ActualitesScreen() {
         filter={filter}
         onClose={() => setOpenCommentsFor(null)}
       />
+
+      {/* FAB orange (auth uniquement) — ouvre la sheet de composition */}
+      {isLoggedIn ? (
+        <Pressable
+          onPress={() => setComposeOpen(true)}
+          accessibilityLabel="Nouveau post"
+          hitSlop={6}
+          className="absolute bottom-5 right-5 h-14 w-14 items-center justify-center rounded-full bg-brand-orange"
+          style={{
+            shadowColor: '#E8650A',
+            shadowOpacity: 0.35,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 6,
+          }}
+        >
+          <Plus size={26} color="#FFFFFF" strokeWidth={2.5} />
+        </Pressable>
+      ) : null}
+
+      <CreatePostSheet visible={composeOpen} onClose={() => setComposeOpen(false)} />
     </SafeAreaView>
   );
 }

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import { invalidateFeedKeys } from '@/lib/invalidations';
 
 import type { TournamentSummary } from './types';
 
@@ -60,6 +61,8 @@ export function useCreateTournament() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tournaments'] });
       qc.invalidateQueries({ queryKey: ['tournaments', 'mine'] });
+      // Listener backend CreateSystemPostOnTournamentCreated injecte un post.
+      invalidateFeedKeys(qc);
     },
   });
 }
@@ -87,6 +90,8 @@ export function useRegisterTeam(uuid: string | undefined) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tournament', uuid] });
       qc.invalidateQueries({ queryKey: ['tournaments'] });
+      // Listener backend peut créer un post système (milestones de remplissage).
+      invalidateFeedKeys(qc);
     },
   });
 }

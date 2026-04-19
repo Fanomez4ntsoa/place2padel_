@@ -12,16 +12,35 @@ class Post extends Model
 {
     use SoftDeletes;
 
+    // Coarse categories — filtrées par FeedService. Valeurs libres (VARCHAR).
     public const TYPE_USER = 'user';
     public const TYPE_SYSTEM_NEW_TOURNAMENT = 'system_new_tournament';
     public const TYPE_SYSTEM_RESULT = 'system_result';
+    public const TYPE_SYSTEM_WELCOME = 'system_welcome';
+    public const TYPE_SYSTEM_RESULT_FRIENDLY = 'system_result_friendly';
+    public const TYPE_SYSTEM_TOURNAMENT_CLUB = 'system_tournament_club';
+
+    // Fine classification Emergent — discriminant pour l'affichage UI.
+    public const POST_TYPE_NEW_PLAYER = 'new_player';
+    public const POST_TYPE_NEW_COMPETITOR = 'new_competitor';
+    public const POST_TYPE_MATCH_RESULT = 'match_result';
+    public const POST_TYPE_TOURNAMENT_CLUB = 'tournament_club';
+    public const POST_TYPE_REFEREE_ANNOUNCEMENT = 'referee_announcement';
+
+    // Hint ratio image côté front.
+    public const ASPECT_SQUARE = 'square';
+    public const ASPECT_PORTRAIT = 'portrait';
+    public const ASPECT_LANDSCAPE = 'landscape';
 
     protected $fillable = [
         'uuid',
         'author_id',
         'type',
+        'post_type',
         'text',
         'image_url',
+        'metadata',
+        'post_aspect',
         'tournament_id',
         'likes_count',
         'comments_count',
@@ -41,6 +60,7 @@ class Post extends Model
         return [
             'likes_count' => 'integer',
             'comments_count' => 'integer',
+            'metadata' => 'array',
         ];
     }
 

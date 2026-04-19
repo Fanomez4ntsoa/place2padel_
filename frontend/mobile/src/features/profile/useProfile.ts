@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import { invalidateFeedKeys } from '@/lib/invalidations';
 
 export interface ProfileClub {
   uuid: string;
@@ -102,6 +103,9 @@ export function useUploadProfilePhoto(uuid: string | undefined) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile', uuid] });
+      // Nouvelle photo → les posts existants affichent encore l'ancienne
+      // (author.picture_url dénormalisé dans la resource).
+      invalidateFeedKeys(qc);
     },
   });
 }

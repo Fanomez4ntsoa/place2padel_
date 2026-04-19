@@ -5,6 +5,7 @@ namespace App\Modules\FriendlyMatch\Services;
 use App\Models\FriendlyMatch;
 use App\Models\FriendlyMatchParticipant;
 use App\Models\User;
+use App\Modules\FriendlyMatch\Events\FriendlyMatchCompleted;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -224,7 +225,9 @@ class FriendlyMatchService
             throw new AuthorizationException("Seul le capitaine de l'équipe {$team} peut valider.");
         }
 
-        DB::transaction(function () use ($match, $team) {
+        $justCompleted = false;
+
+        DB::transaction(function () use ($match, $team, &$justCompleted) {
             $locked = FriendlyMatch::whereKey($match->id)->lockForUpdate()->first();
 
             $field = $team === 1 ? 'validated_by_team1' : 'validated_by_team2';
@@ -242,8 +245,16 @@ class FriendlyMatchService
                 ]);
 
                 $this->applyElo($locked, $winnerTeam, $loserTeam);
+                $justCompleted = true;
             }
         });
+
+        // Dispatch hors transaction — évite de bloquer le COMMIT si un listener
+        // synchrone lève une exception, et garantit que le Post système voit
+        // les données persistées (ELO after, winner_team, completed_at).
+        if ($justCompleted) {
+            FriendlyMatchCompleted::dispatch($match->fresh());
+        }
 
         return $match->fresh(['participants.user', 'creator']);
     }

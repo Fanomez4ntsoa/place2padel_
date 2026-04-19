@@ -1,4 +1,31 @@
-export type PostType = 'user' | 'system' | 'tournament_created' | 'tournament_completed';
+/**
+ * Coarse category (colonne `type` en VARCHAR libre). Utilisée par FeedService
+ * pour filtrer. Liste non exhaustive — on accepte `string` pour forward-compat
+ * avec de nouveaux types système ajoutés côté backend sans typage mobile.
+ */
+export type PostType =
+  | 'user'
+  | 'system_new_tournament'
+  | 'system_result'
+  | 'system_welcome'
+  | 'system_result_friendly'
+  | 'system_tournament_club'
+  | string;
+
+/**
+ * Classification fine Emergent (colonne `post_type`). Discriminant pour
+ * l'affichage dans la carte post (welcome, match_result, …).
+ */
+export type PostSubType =
+  | 'new_player'
+  | 'new_competitor'
+  | 'match_result'
+  | 'tournament_club'
+  | 'referee_announcement'
+  | string;
+
+/** Hint ratio image (colonne `post_aspect`). null = default 4/5. */
+export type PostAspect = 'square' | 'portrait' | 'landscape' | null;
 
 export interface FeedAuthor {
   uuid: string;
@@ -15,9 +42,12 @@ export interface FeedTournament {
 export interface FeedPost {
   uuid: string;
   type: PostType;
+  post_type: PostSubType | null;
   author: FeedAuthor | null;
   text: string | null;
   image_url: string | null;
+  metadata: Record<string, unknown> | null;
+  post_aspect: PostAspect;
   tournament: FeedTournament | null;
   likes_count: number;
   comments_count: number;

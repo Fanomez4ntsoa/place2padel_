@@ -3,6 +3,7 @@
 namespace App\Modules\User\Services;
 
 use App\Models\Club;
+use App\Models\Post;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +54,17 @@ class ProfileService
         if ($oldPath && $oldPath !== $path) {
             $disk->delete($oldPath);
         }
+
+        // Backfill welcome post — port Emergent server.py:1745-1749.
+        // À la 1ère upload, si l'user a un welcome post sans image_url, on
+        // lui injecte l'URL publique pour que le post s'illumine dans le feed.
+        // Sur les uploads suivants, image_url est déjà renseignée → no-op.
+        $publicUrl = $disk->url($path);
+        Post::query()
+            ->where('author_id', $user->id)
+            ->whereIn('post_type', [Post::POST_TYPE_NEW_PLAYER, Post::POST_TYPE_NEW_COMPETITOR])
+            ->whereNull('image_url')
+            ->update(['image_url' => $publicUrl]);
 
         return $user->fresh(['profile', 'clubs.club', 'preferredLevels', 'availabilities']);
     }

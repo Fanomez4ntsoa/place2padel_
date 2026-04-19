@@ -18,6 +18,7 @@ class PostResource extends JsonResource
         return [
             'uuid' => $this->uuid,
             'type' => $this->type,
+            'post_type' => $this->post_type,
             'author' => $this->author ? [
                 'uuid' => $this->author->uuid,
                 'name' => $this->author->name,
@@ -25,6 +26,8 @@ class PostResource extends JsonResource
             ] : null,
             'text' => $this->text,
             'image_url' => $this->image_url,
+            'metadata' => $this->metadata,
+            'post_aspect' => $this->post_aspect,
             'tournament' => $this->tournament ? [
                 'uuid' => $this->tournament->uuid,
                 'name' => $this->tournament->name,
