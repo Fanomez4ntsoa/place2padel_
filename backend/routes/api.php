@@ -53,6 +53,8 @@ use App\Modules\Matchmaking\Controllers\CancelProposalController;
 use App\Modules\Matchmaking\Controllers\CancelSeekingPartnerController;
 use App\Modules\Matchmaking\Controllers\DeclareSeekingPartnerController;
 use App\Modules\Matchmaking\Controllers\ListConversationsController;
+use App\Modules\Matchmaking\Controllers\ListMatchesController as ListPlayerMatchesController;
+use App\Modules\Matchmaking\Controllers\ListMatchingCandidatesController;
 use App\Modules\Matchmaking\Controllers\ListMessagesController;
 use App\Modules\Matchmaking\Controllers\MarkConversationReadController;
 use App\Modules\Matchmaking\Controllers\ListProposalsController;
@@ -60,6 +62,7 @@ use App\Modules\Matchmaking\Controllers\ListSeekingPartnersController;
 use App\Modules\Matchmaking\Controllers\MySeekingController;
 use App\Modules\Matchmaking\Controllers\PostMessageController;
 use App\Modules\Matchmaking\Controllers\ProposeToPartnerController;
+use App\Modules\Matchmaking\Controllers\SwipeController;
 use App\Modules\Matchmaking\Controllers\RespondProposalController;
 use App\Modules\User\Controllers\SearchTenupController;
 use App\Modules\Waitlist\Controllers\JoinWaitlistController;
@@ -244,6 +247,14 @@ Route::prefix('v1')->group(function () {
             ->middleware('throttle:60,1')
             ->name('matchmaking.conversations.read');
 
+        // Matching global amical Phase 4.2 — swipe + matches mutuels (auth required).
+        Route::post('matching/swipe', SwipeController::class)
+            ->middleware('throttle:60,1')
+            ->name('matchmaking.swipe');
+        Route::get('matching/matches', ListPlayerMatchesController::class)
+            ->middleware('throttle:60,1')
+            ->name('matchmaking.matches');
+
         // Feed Phase 5.1 — endpoints authentifiés.
         Route::get('feed', FeedController::class)
             ->middleware('throttle:120,1')
@@ -374,6 +385,12 @@ Route::prefix('v1')->group(function () {
     Route::get('tournaments/{tournament}/seeking-partners', ListSeekingPartnersController::class)
         ->middleware('throttle:60,1')
         ->name('matchmaking.seeking.list');
+
+    // Matching global amical Phase 4.2 — auth optionnelle (browse non-auth
+    // possible, mais compat/exclusions swipes uniquement pour viewer auth).
+    Route::get('matching/candidates', ListMatchingCandidatesController::class)
+        ->middleware('throttle:60,1')
+        ->name('matchmaking.candidates');
 
     // Feed Phase 5.1 — lecture publique (liked_by_viewer renseigné si Bearer fourni).
     Route::get('tournaments/{tournament}/posts', ListTournamentPostsController::class)

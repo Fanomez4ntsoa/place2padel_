@@ -3,11 +3,14 @@
 namespace App\Modules\Matchmaking\Services;
 
 use App\Models\Conversation;
+use App\Models\PlayerMatch;
 use App\Models\PrivateMessage;
 use App\Models\Proposal;
+use App\Models\Swipe;
 use App\Models\Tournament;
 use App\Models\TournamentInterest;
 use App\Models\User;
+use App\Modules\Matchmaking\Events\MatchCreated;
 use App\Modules\Matchmaking\Events\ProposalCreated;
 use App\Modules\Matchmaking\Events\ProposalResponded;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -30,6 +33,7 @@ class MatchmakingService
         [$a, $b] = $this->normalizePair($userAId, $userBId);
         return Conversation::firstOrCreate(
             ['user_a_id' => $a, 'user_b_id' => $b],
+            ['uuid' => (string) \Illuminate\Support\Str::uuid7()],
         );
     }
 
@@ -255,10 +259,12 @@ class MatchmakingService
     /**
      * Bonus localisation : au moins un club en commun entre les deux joueurs
      * (parmi les 3 clubs max). Binaire : ≥ 1 intersection = 15 pts, sinon 0.
-     * Tournament passé en param pour préparer Phase 4.2 (bonus "club du tournoi").
+     * `$tournament` nullable — inutile dans le score actuel, gardé pour hook
+     * futur (bonus "club du tournoi" en Phase 4.2).
      */
-    private function scoreClub(User $a, User $b, Tournament $tournament): int
+    private function scoreClub(User $a, User $b, ?Tournament $tournament = null): int
     {
+        unset($tournament);
         $clubsA = $a->clubs->pluck('club_id')->all();
         $clubsB = $b->clubs->pluck('club_id')->all();
         return count(array_intersect($clubsA, $clubsB)) > 0 ? 15 : 0;
@@ -291,5 +297,310 @@ class MatchmakingService
         if ($pending >= 3) {
             throw new HttpException(422, 'Quota atteint : 3 propositions pending maximum pour ce tournoi.');
         }
+    }
+
+    // =================================================================
+    // GLOBAL MATCHING — "Match amical" (hors tournoi).
+    // Port fidèle des endpoints Emergent /matching/candidates, /swipe, /matches.
+    // =================================================================
+
+    public const CANDIDATES_LIMIT = 20;
+
+    /**
+     * Score global 0-100 entre $a et $b, sans tournoi. Pondérations alignées
+     * Emergent d5ac086 (position 30, level 30, dispos 25, géo 15) avec les
+     * seuils Emergent exacts (plus permissifs que contextualCompatibility).
+     */
+    public function globalCompatibility(User $a, User $b): int
+    {
+        $score = $this->globalScorePosition($a, $b)
+            + $this->globalScoreLevel($a, $b)
+            + $this->globalScoreAvailabilities($a, $b)
+            + $this->globalScoreGeo($a, $b);
+
+        return (int) min($score, 100);
+    }
+
+    /**
+     * Liste de candidats pour le matching global. Exclusions : self + admin
+     * + tous les users déjà swipés (any direction). Tri : (_geo, -compatibility)
+     * — même club prioritaire, puis même ville, puis reste ; à l'intérieur de
+     * chaque zone compat desc. Limite hard {@see CANDIDATES_LIMIT}.
+     *
+     * Auth optionnelle côté controller : si $viewer est null, retourne les
+     * 20 premiers users actifs non-admin sans filtrage swipes (browse mode).
+     *
+     * @return Collection<int, array{user: User, compatibility: int, geo: int}>
+     */
+    public function listCompatibleCandidates(?User $viewer, ?string $city = null): Collection
+    {
+        $query = User::query()
+            ->where('role', '!=', 'admin')
+            ->with(['profile', 'availabilities', 'clubs.club:id,name,city']);
+
+        if ($viewer !== null) {
+            $viewer->loadMissing(['profile', 'availabilities', 'clubs']);
+
+            $swipedIds = $viewer->swipesSent()->pluck('to_user_id')->all();
+            $excludedIds = array_merge([$viewer->id], $swipedIds);
+            $query->whereNotIn('id', $excludedIds);
+        }
+
+        if ($city !== null && $city !== '') {
+            $query->where('city', 'like', $city.'%');
+        }
+
+        // On charge largement puis on trie côté PHP — l'algorithme de tri composite
+        // (geo puis compat) est plus simple en collection et la limite hard à
+        // 20 garantit qu'on reste performant. Si volume explose on basculera
+        // vers une requête SQL scorée (Phase 4.3).
+        $candidates = $query->limit(self::CANDIDATES_LIMIT * 4)->get();
+
+        return $candidates
+            ->map(function (User $user) use ($viewer): array {
+                $compat = $viewer !== null ? $this->globalCompatibility($viewer, $user) : 0;
+                $geo = $viewer !== null ? $this->geoPriority($viewer, $user) : 2;
+                return ['user' => $user, 'compatibility' => $compat, 'geo' => $geo];
+            })
+            ->sortBy(fn (array $c) => [$c['geo'], -$c['compatibility']])
+            ->values()
+            ->take(self::CANDIDATES_LIMIT);
+    }
+
+    /**
+     * Enregistre un swipe (upsert) et détecte un like mutuel.
+     *
+     * Si mutual like : crée (ou retrouve) le PlayerMatch + la Conversation
+     * associée + dispatch MatchCreated (→ Listener envoie notifs + emails).
+     *
+     * @param  'like'|'pass'  $action
+     * @return array{is_match: bool, conversation_uuid: ?string, match: ?PlayerMatch}
+     */
+    public function recordSwipe(User $from, User $to, string $action): array
+    {
+        if ($from->id === $to->id) {
+            throw new HttpException(422, 'Impossible de se swiper soi-même.');
+        }
+        if (! in_array($action, Swipe::ACTIONS, true)) {
+            throw new HttpException(422, 'Action invalide (like|pass attendu).');
+        }
+
+        Swipe::updateOrCreate(
+            ['from_user_id' => $from->id, 'to_user_id' => $to->id],
+            ['action' => $action],
+        );
+
+        if ($action !== Swipe::ACTION_LIKE) {
+            return ['is_match' => false, 'conversation_uuid' => null, 'match' => null];
+        }
+
+        // Détection mutual like — le reverse swipe doit exister et être 'like'.
+        $reverse = Swipe::where('from_user_id', $to->id)
+            ->where('to_user_id', $from->id)
+            ->where('action', Swipe::ACTION_LIKE)
+            ->exists();
+
+        if (! $reverse) {
+            return ['is_match' => false, 'conversation_uuid' => null, 'match' => null];
+        }
+
+        [$match, $conversation, $wasCreated] = DB::transaction(function () use ($from, $to): array {
+            [$a, $b] = $this->normalizePair($from->id, $to->id);
+
+            $existing = PlayerMatch::where('user_a_id', $a)->where('user_b_id', $b)->first();
+            if ($existing !== null) {
+                $conv = $this->findOrCreateConversation($from->id, $to->id);
+                return [$existing, $conv, false];
+            }
+
+            $match = PlayerMatch::create([
+                'uuid' => (string) \Illuminate\Support\Str::uuid7(),
+                'user_a_id' => $a,
+                'user_b_id' => $b,
+            ]);
+            $conv = $this->findOrCreateConversation($from->id, $to->id);
+
+            // Message système "Vous avez matché !" dans la conv toute neuve.
+            $text = 'Vous avez matché ! Commencez à discuter.';
+            $message = PrivateMessage::create([
+                'uuid' => (string) \Illuminate\Support\Str::uuid7(),
+                'conversation_id' => $conv->id,
+                'sender_id' => $from->id,
+                'text' => $text,
+                'type' => PrivateMessage::TYPE_SYSTEM,
+            ]);
+            $conv->update([
+                'last_message' => $text,
+                'last_message_at' => $message->created_at,
+            ]);
+
+            return [$match, $conv, true];
+        });
+
+        if ($wasCreated) {
+            MatchCreated::dispatch($match->fresh(), $conversation->fresh());
+        }
+
+        return [
+            'is_match' => true,
+            'conversation_uuid' => $conversation->uuid,
+            'match' => $match,
+        ];
+    }
+
+    /**
+     * Liste des matches mutuels du viewer avec conversation_uuid associée.
+     * Triée par created_at desc.
+     *
+     * @return Collection<int, array{match: PlayerMatch, other: User, conversation_uuid: ?string}>
+     */
+    public function listMatches(User $viewer): Collection
+    {
+        $matches = PlayerMatch::query()
+            ->where(function ($q) use ($viewer) {
+                $q->where('user_a_id', $viewer->id)->orWhere('user_b_id', $viewer->id);
+            })
+            ->with(['userA.profile', 'userA.clubs.club:id,name,city', 'userB.profile', 'userB.clubs.club:id,name,city'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        // Bulk fetch des conversations pour éviter N+1.
+        $otherIds = $matches->map(fn (PlayerMatch $m) => $m->user_a_id === $viewer->id ? $m->user_b_id : $m->user_a_id)->all();
+        $conversations = $this->conversationsByOtherUser($viewer, $otherIds);
+
+        return $matches->map(function (PlayerMatch $m) use ($viewer, $conversations): array {
+            $other = $m->other($viewer);
+            $conv = $other !== null ? ($conversations[$other->id] ?? null) : null;
+            return [
+                'match' => $m,
+                'other' => $other,
+                'conversation_uuid' => $conv?->uuid,
+            ];
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // Helpers privés — matching global.
+    // ---------------------------------------------------------------------
+
+    /**
+     * @param  int[]  $otherIds
+     * @return array<int, Conversation> keyed by other user id
+     */
+    private function conversationsByOtherUser(User $viewer, array $otherIds): array
+    {
+        if ($otherIds === []) {
+            return [];
+        }
+        $convs = Conversation::query()
+            ->where(function ($q) use ($viewer, $otherIds) {
+                $q->where(function ($w) use ($viewer, $otherIds) {
+                    $w->where('user_a_id', $viewer->id)->whereIn('user_b_id', $otherIds);
+                })->orWhere(function ($w) use ($viewer, $otherIds) {
+                    $w->where('user_b_id', $viewer->id)->whereIn('user_a_id', $otherIds);
+                });
+            })
+            ->get();
+
+        $indexed = [];
+        foreach ($convs as $c) {
+            $otherId = $c->user_a_id === $viewer->id ? $c->user_b_id : $c->user_a_id;
+            $indexed[$otherId] = $c;
+        }
+        return $indexed;
+    }
+
+    /**
+     * Zone de référence pour le tri géo (viewer vs candidate) :
+     *   0 = même club · 1 = même ville · 2 = autres.
+     */
+    private function geoPriority(User $viewer, User $candidate): int
+    {
+        $viewerClubs = $viewer->clubs->pluck('club_id')->all();
+        $candidateClubs = $candidate->clubs->pluck('club_id')->all();
+        if (! empty(array_intersect($viewerClubs, $candidateClubs))) {
+            return 0;
+        }
+        $vCity = strtolower(trim((string) $viewer->city));
+        $cCity = strtolower(trim((string) $candidate->city));
+        if ($vCity !== '' && $vCity === $cCity) {
+            return 1;
+        }
+        return 2;
+    }
+
+    /**
+     * Position — pondérations Emergent : complémentaire 30, polyvalent 20,
+     * même côté 8, N/A 10. Plus permissif que `scorePosition` contextuel.
+     */
+    private function globalScorePosition(User $a, User $b): int
+    {
+        $pa = $a->profile?->position;
+        $pb = $b->profile?->position;
+        if ($pa === null || $pb === null) {
+            return 10;
+        }
+        if (($pa === 'left' && $pb === 'right') || ($pa === 'right' && $pb === 'left')) {
+            return 30;
+        }
+        if ($pa === 'both' || $pb === 'both') {
+            return 20;
+        }
+        return 8;
+    }
+
+    /**
+     * Niveau — seuils Emergent : <500 = 30, <2k = 22, <5k = 15, <10k = 8, ≥10k = 3.
+     */
+    private function globalScoreLevel(User $a, User $b): int
+    {
+        $la = (int) ($a->profile?->padel_points ?? 0);
+        $lb = (int) ($b->profile?->padel_points ?? 0);
+        $diff = abs($la - $lb);
+        return match (true) {
+            $diff < 500 => 30,
+            $diff < 2000 => 22,
+            $diff < 5000 => 15,
+            $diff < 10000 => 8,
+            default => 3,
+        };
+    }
+
+    /**
+     * Dispos — 3+ = 25, 2 = 18, 1 = 10, 0 = 2, N/A = 8.
+     * Réutilise overlapAvailabilities (Flexible-aware).
+     */
+    private function globalScoreAvailabilities(User $a, User $b): int
+    {
+        $availA = $a->availabilities;
+        $availB = $b->availabilities;
+        if ($availA === null || $availB === null || $availA->isEmpty() || $availB->isEmpty()) {
+            return 8;
+        }
+        $overlap = $this->overlapAvailabilities($a, $b);
+        return match (true) {
+            $overlap >= 3 => 25,
+            $overlap === 2 => 18,
+            $overlap === 1 => 10,
+            default => 2,
+        };
+    }
+
+    /**
+     * Géo — même club 15, même ville 10, autres 2.
+     */
+    private function globalScoreGeo(User $a, User $b): int
+    {
+        $clubsA = $a->clubs->pluck('club_id')->all();
+        $clubsB = $b->clubs->pluck('club_id')->all();
+        if (! empty(array_intersect($clubsA, $clubsB))) {
+            return 15;
+        }
+        $cityA = strtolower(trim((string) $a->city));
+        $cityB = strtolower(trim((string) $b->city));
+        if ($cityA !== '' && $cityA === $cityB) {
+            return 10;
+        }
+        return 2;
     }
 }

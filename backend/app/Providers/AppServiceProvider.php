@@ -8,10 +8,12 @@ use App\Modules\Auth\Listeners\DispatchFFTSync;
 use App\Modules\Auth\Listeners\SendWelcomeEmail;
 use App\Modules\Feed\Listeners\CreateSystemPostOnTournamentCompleted;
 use App\Modules\Feed\Listeners\CreateSystemPostOnTournamentCreated;
+use App\Modules\Matchmaking\Events\MatchCreated;
 use App\Modules\Matchmaking\Events\MessageSent;
 use App\Modules\Matchmaking\Events\ProposalCreated;
 use App\Modules\Matchmaking\Events\ProposalResponded;
 use App\Modules\Notification\Listeners\DispatchLaunchNotifications;
+use App\Modules\Notification\Listeners\NotifyMatchCreated;
 use App\Modules\Notification\Listeners\NotifyMessageSent;
 use App\Modules\Notification\Listeners\NotifyNewTournament;
 use App\Modules\Notification\Listeners\NotifyProposalCreated;
@@ -55,6 +57,9 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(ProposalCreated::class, NotifyProposalCreated::class);
         Event::listen(ProposalResponded::class, NotifyProposalResponded::class);
         Event::listen(MessageSent::class, NotifyMessageSent::class);
+
+        // Notifications Phase 4.2 — matching global amical (like mutuel).
+        Event::listen(MatchCreated::class, NotifyMatchCreated::class);
 
         // Feed Phase 5.1 — génération automatique de posts système.
         Event::listen(TournamentCreated::class, CreateSystemPostOnTournamentCreated::class);
