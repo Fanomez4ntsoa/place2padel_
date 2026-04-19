@@ -5,8 +5,9 @@ import {
   Bell,
   Calendar,
   Check,
+  CheckCheck,
   ChevronRight,
-  Plus,
+  Play,
   Swords,
   TrendingUp,
   Trophy,
@@ -144,8 +145,14 @@ function FriendlyMatchDashboard() {
   const startProposalMut = useStartGameProposal();
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const openMatch = (uuid: string) => router.push((`/match/${uuid}/live`) as never);
+
+  const elo = myEloQuery.data;
+  const statPlayed = elo?.matches_played ?? 0;
+  const statWon = elo?.matches_won ?? 0;
+  const statLost = elo?.matches_lost ?? 0;
 
   const handleRespond = (p: GameProposal, response: 'accepted' | 'refused') =>
     respondProposalMut
@@ -189,30 +196,81 @@ function FriendlyMatchDashboard() {
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* ── Hero navy compact — port FriendlyMatchPage.js Emergent d5ac086 ── */}
         <LinearGradient
           colors={['#1A2A4A', '#2A4A6A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 24, paddingTop: 32, paddingBottom: 40 }}
+          style={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24 }}
         >
-          <Text variant="caption" className="text-white/50">Matchs amicaux</Text>
-          <Text variant="h1" className="mt-1 text-white">
-            Joue, score, progresse
-          </Text>
+          <View className="flex-row items-center gap-3">
+            <View
+              className="h-11 w-11 items-center justify-center rounded-[14px]"
+              style={{ backgroundColor: 'rgba(232,101,10,0.13)' }}
+            >
+              <Swords size={22} color="#E8650A" />
+            </View>
+            <View className="flex-1">
+              <Text
+                className="font-heading-black text-white"
+                style={{ fontSize: 22, lineHeight: 26 }}
+              >
+                Match Amical
+              </Text>
+              <Text className="text-white/60" style={{ fontSize: 12 }}>
+                Joue · Score · Progresse
+              </Text>
+            </View>
+          </View>
+
+          {/* Stats row 3 tiles — intégrées dans le hero navy */}
+          <View className="mt-4 flex-row gap-2">
+            <HeroStatTile value={statPlayed} label="Joués" />
+            <HeroStatTile value={statWon} label="Victoires" valueColor="#4ADE80" />
+            <HeroStatTile value={statLost} label="Défaites" valueColor="#F87171" />
+          </View>
         </LinearGradient>
 
         <View className="-mt-6 gap-4 px-5">
-          {/* ELO Card */}
+          {/* ELO Card (déclaré vs ELO + barre progression) */}
           {myEloQuery.data ? <EloCard elo={myEloQuery.data} /> : (
             <Card><ActivityIndicator color="#E8650A" /></Card>
           )}
 
-          {/* CTA créer */}
+          {/* CTA principal — Commence la Partie */}
           <Button
-            label="Lancer un match"
-            leftIcon={<Plus size={18} color="#FFFFFF" />}
+            label="Commence la Partie"
+            leftIcon={<Play size={18} color="#FFFFFF" fill="#FFFFFF" />}
             onPress={() => setCreateOpen(true)}
           />
+
+          {/* Card "Règles du match" — look bleu light, chevron Voir */}
+          <Pressable
+            onPress={() => setRulesOpen(true)}
+            className="flex-row items-center justify-between rounded-2xl border bg-[#EFF6FF] px-4 py-3"
+            style={{ borderColor: '#BFDBFE', borderWidth: 1.5 }}
+          >
+            <View className="flex-row items-center gap-2.5">
+              <View
+                className="h-7 w-7 items-center justify-center rounded-lg"
+                style={{ backgroundColor: '#DBEAFE' }}
+              >
+                <CheckCheck size={15} color="#2563EB" />
+              </View>
+              <Text
+                className="font-heading-black"
+                style={{ fontSize: 13, color: '#1E40AF' }}
+              >
+                Règles du match
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-1">
+              <Text className="font-heading" style={{ fontSize: 11, color: '#3B82F6' }}>
+                Voir
+              </Text>
+              <ChevronRight size={16} color="#3B82F6" />
+            </View>
+          </Pressable>
 
           {/* Invitations reçues / en attente */}
           {pendingMatches.data && pendingMatches.data.length > 0 ? (
@@ -226,11 +284,11 @@ function FriendlyMatchDashboard() {
             </Section>
           ) : null}
 
-          {/* Parties planifiées (game-proposals) */}
+          {/* Propose une partie — section game-proposals (label aligné Emergent d5ac086) */}
           {proposalsQuery.data && proposalsQuery.data.length > 0 ? (
             <Section
               icon={<Calendar size={14} color="#E8650A" />}
-              title={`Parties planifiées (${proposalsQuery.data.length})`}
+              title={`Propose une partie (${proposalsQuery.data.length})`}
             >
               {proposalsQuery.data.map((p) => (
                 <GameProposalCard
@@ -302,7 +360,124 @@ function FriendlyMatchDashboard() {
       </ScrollView>
 
       <CreateFriendlyMatchModal visible={createOpen} onClose={() => setCreateOpen(false)} />
+      <RulesModal visible={rulesOpen} onClose={() => setRulesOpen(false)} />
     </SafeAreaView>
+  );
+}
+
+/**
+ * Tile d'une stat dans le hero navy — transparent bg (white/8), valeur 20px
+ * black, label 10px semi-bold white/50. Valeur colorée optionnelle (vert/rouge).
+ */
+function HeroStatTile({
+  value,
+  label,
+  valueColor = '#FFFFFF',
+}: {
+  value: number;
+  label: string;
+  valueColor?: string;
+}) {
+  return (
+    <View
+      className="flex-1 items-center rounded-xl py-2.5"
+      style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+    >
+      <Text
+        className="font-heading-black"
+        style={{ fontSize: 20, lineHeight: 24, color: valueColor }}
+      >
+        {value}
+      </Text>
+      <Text
+        className="font-body-medium"
+        style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+const RULES: { num: string; title: string; text: string }[] = [
+  {
+    num: '1',
+    title: 'Format',
+    text: "Un match se joue en 9 jeux. En cas d'égalité à 8-8, un tie-break est joué pour départager les équipes.",
+  },
+  {
+    num: '2',
+    title: 'Saisie du score',
+    text: 'Tu peux noter le score à la fin du match ou à chaque changement de côté. Les boutons + et − ajustent le score à tout moment.',
+  },
+  {
+    num: '3',
+    title: 'Valider la partie',
+    text: 'À la fin, chaque équipe doit confirmer le résultat. Le score est validé quand les deux capitaines ont confirmé.',
+  },
+  {
+    num: '4',
+    title: 'Ton Niveau',
+    text: 'Après chaque partie validée, ton Niveau (1 à 10) est mis à jour en fonction de tes résultats et du niveau de tes adversaires. Il se déverrouille après 10 parties.',
+  },
+];
+
+function RulesModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable onPress={onClose} className="flex-1 bg-black/40" />
+      <View className="rounded-t-3xl bg-white px-5 pb-8 pt-4">
+        <View className="mb-3 flex-row items-center justify-between">
+          <View className="flex-row items-center gap-2">
+            <View
+              className="h-7 w-7 items-center justify-center rounded-lg"
+              style={{ backgroundColor: '#DBEAFE' }}
+            >
+              <CheckCheck size={15} color="#2563EB" />
+            </View>
+            <Text variant="h2" className="text-[18px]">
+              Règles du match
+            </Text>
+          </View>
+          <Pressable onPress={onClose} hitSlop={8}>
+            <X size={22} color="#1A2A4A" />
+          </Pressable>
+        </View>
+
+        <View className="gap-0">
+          {RULES.map((r, i) => (
+            <View
+              key={r.num}
+              className={`flex-row gap-3 py-3 ${
+                i < RULES.length - 1 ? 'border-b border-brand-border/60' : ''
+              }`}
+            >
+              <View
+                className="h-6 w-6 items-center justify-center rounded-full"
+                style={{ backgroundColor: '#E8650A' }}
+              >
+                <Text
+                  className="font-heading-black text-white"
+                  style={{ fontSize: 11, lineHeight: 13 }}
+                >
+                  {r.num}
+                </Text>
+              </View>
+              <View className="flex-1">
+                <Text variant="body-medium" className="text-[13px]">
+                  {r.title}
+                </Text>
+                <Text variant="caption" className="mt-0.5 text-[12px]" style={{ lineHeight: 17 }}>
+                  {r.text}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <Button label="J'ai compris" onPress={onClose} className="mt-5" />
+      </View>
+    </Modal>
   );
 }
 

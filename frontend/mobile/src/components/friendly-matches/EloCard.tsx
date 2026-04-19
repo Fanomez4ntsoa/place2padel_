@@ -78,23 +78,6 @@ export function EloCard({ elo }: Props) {
           )}
         </View>
       ) : null}
-
-      <View className="mt-3 flex-row gap-3 border-t border-brand-border/50 pt-3">
-        <StatCell value={elo.matches_played} label="Joués" />
-        <StatCell value={elo.matches_won} label="Victoires" color="text-emerald-600" />
-        <StatCell value={elo.matches_lost} label="Défaites" color="text-red-500" />
-      </View>
-    </View>
-  );
-}
-
-function StatCell({ value, label, color }: { value: number; label: string; color?: string }) {
-  return (
-    <View className="flex-1 items-center">
-      <Text className={`font-heading-black text-[18px] ${color ?? 'text-brand-navy'}`}>
-        {value}
-      </Text>
-      <Text variant="caption" className="text-[10px]">{label}</Text>
     </View>
   );
 }
