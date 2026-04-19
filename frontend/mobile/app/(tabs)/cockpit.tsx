@@ -6,12 +6,10 @@ import {
   Heart,
   Inbox,
   LogOut,
-  MapPin,
   MessageCircle,
   TreePalm,
   Plus,
   QrCode,
-  Search,
   Trophy,
   User as UserIcon,
   X,
@@ -31,12 +29,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AccountRoleCardsList, AccountRole } from '@/components/auth/AccountRoleCards';
 import { useAuth } from '@/contexts/AuthContext';
-import { Badge, Button, Card, Text, useFadeInUp } from '@/design-system';
+import { Button, Card, Text, useFadeInUp } from '@/design-system';
 import { formatApiError } from '@/lib/api';
 import { useConversations } from '@/features/conversations/useConversations';
 import { useUnreadCounters } from '@/features/counters/useCounters';
+import { useUserElo } from '@/features/friendly-matches/useFriendlyMatches';
+import { useProfile } from '@/features/profile/useProfile';
 import { useProposals } from '@/features/proposals/useProposals';
-import { useMySeekingTournaments } from '@/features/tournaments/useTournament';
+import { useMyTournaments } from '@/features/tournaments/useMyTournaments';
 import Animated from 'react-native-reanimated';
 
 type IconCmp = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -147,8 +147,6 @@ function CockpitPreview({
 function CockpitPlayer({
   name,
   userUuid,
-  role,
-  padelPoints,
   onLogout,
 }: {
   name?: string;
@@ -160,59 +158,158 @@ function CockpitPlayer({
   const router = useRouter();
   const fade = useFadeInUp(0);
 
-  const canCreateTournament =
-    role === 'organizer' || role === 'referee' || role === 'admin';
+  // Données dashboard — hooks cached TanStack Query (staleTime 30-60s).
+  const { data: profile } = useProfile(userUuid);
+  const { data: elo } = useUserElo(userUuid);
+  const inProgressQuery = useMyTournaments('in_progress');
+  const { unreadNotifications } = useUnreadCounters();
+  const { data: conversations } = useConversations();
+  const { data: receivedProposals } = useProposals('received');
+
+  const unreadMessages = (conversations ?? []).filter((c) => c.unread_count > 0).length;
+  const pendingProposals =
+    receivedProposals?.filter((p) => p.status === 'pending').length ?? 0;
+  const inProgressCount = inProgressQuery.data?.pages[0]?.meta.total ?? 0;
+
+  const stats = {
+    points: profile?.padel_points ?? 0,
+    ranking: profile?.ranking ? `#${profile.ranking}` : '—',
+    wins: elo?.matches_won ?? 0,
+    tournaments: inProgressCount,
+  };
+
+  // Barre de complétion — 6 critères alignés Emergent d5ac086.
+  const completionChecks: boolean[] = [
+    !!profile?.picture_url,
+    !!profile?.profile?.bio,
+    (profile?.availabilities?.length ?? 0) > 0,
+    (profile?.clubs?.length ?? 0) > 0,
+    !!profile?.profile?.license_number,
+    (profile?.padel_points ?? 0) > 0,
+  ];
+  const completionPct = Math.round(
+    (completionChecks.filter(Boolean).length / completionChecks.length) * 100,
+  );
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* ── Hero navy avec avatar + label + stats ── */}
         <LinearGradient
           colors={['#1A2A4A', '#2A4A6A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 24, paddingTop: 32, paddingBottom: 40 }}
+          style={{ paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}
         >
-          <Text variant="caption" className="text-white/50">
-            Bonjour {name ?? ''} 👋
-          </Text>
-          <Text variant="h1" className="mt-1 text-white">
-            Mon cockpit
-          </Text>
-
-          {typeof padelPoints === 'number' ? (
-            <View className="mt-4 flex-row items-center gap-3">
-              <Badge label={`${padelPoints} pts FFT`} tone="info" />
-              <Badge label="Compétiteur" tone="neutral" />
+          <View className="mb-4 flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text variant="caption" className="text-white/40 text-[11px]">
+                Mon cockpit
+              </Text>
+              <Text variant="h1" className="mt-0.5 text-white">
+                {name ?? ''}
+              </Text>
             </View>
-          ) : null}
+            <Pressable
+              onPress={() => router.push(`/profil/${userUuid}`)}
+              className="h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white/10"
+              hitSlop={4}
+            >
+              {profile?.picture_url ? (
+                <ExpoImageCompat uri={profile.picture_url} />
+              ) : (
+                <Text className="font-heading-black text-[16px] text-white">
+                  {(name ?? '?').trim().charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+
+          {/* Grille 4 stats */}
+          <View className="flex-row gap-2">
+            <StatTile value={stats.points} label="Points FFT" />
+            <StatTile value={stats.ranking} label="Rang" />
+            <StatTile value={stats.wins} label="Victoires" />
+            <StatTile value={stats.tournaments} label="Tournois" />
+          </View>
         </LinearGradient>
 
         <Animated.View style={fade} className="-mt-6 gap-3 px-5">
+          {/* ── Barre de complétion profil ── */}
+          <Pressable
+            onPress={() => router.push(`/profil/${userUuid}`)}
+            className="rounded-2xl border border-brand-border bg-white p-3"
+          >
+            <View className="mb-1.5 flex-row items-center justify-between">
+              <Text
+                className="font-heading-black text-[11px] text-brand-navy"
+              >
+                Mon profil
+              </Text>
+              <Text
+                className="font-heading-black text-[11px] text-brand-orange"
+              >
+                {completionPct}%
+              </Text>
+            </View>
+            <View className="h-2 overflow-hidden rounded-full bg-brand-orange-light">
+              <View
+                className="h-full rounded-full bg-brand-orange"
+                style={{ width: `${completionPct}%` }}
+              />
+            </View>
+          </Pressable>
+
+          {/* ── Bouton + Nouveau post ── */}
+          <Button
+            label="Nouveau post"
+            leftIcon={<Plus size={18} color="#FFFFFF" />}
+            onPress={() => router.push(`/profil/${userUuid}`)}
+          />
+
+          {/* ── VacationCard ── */}
           <VacationCard />
-          <SeekingBlock />
+
+          {/* ── ActionCards — ordre exact utilisateur ── */}
+          <ActionCard
+            icon={UserIcon}
+            label="Mon profil"
+            subtitle="Voir et éditer"
+            onPress={() => router.push(`/profil/${userUuid}`)}
+          />
+          <ActionCard
+            icon={Bell}
+            label="Notifications"
+            subtitle={
+              unreadNotifications > 0
+                ? `${unreadNotifications} non lue${unreadNotifications > 1 ? 's' : ''}`
+                : 'Alertes tournois, inscriptions, messages'
+            }
+            count={unreadNotifications}
+            onPress={() => router.push('/notifications' as never)}
+          />
+          <ActionCard
+            icon={MessageCircle}
+            label="Messages"
+            subtitle={
+              unreadMessages > 0
+                ? `${unreadMessages} non lu${unreadMessages > 1 ? 's' : ''}`
+                : 'Mes conversations'
+            }
+            count={unreadMessages}
+            onPress={() => router.push('/conversations')}
+          />
           <ActionCard
             icon={Trophy}
             label="Mes tournois"
-            subtitle="Inscriptions + organisations"
+            subtitle={
+              inProgressCount > 0
+                ? `${inProgressCount} en cours`
+                : 'En cours, à venir, passés'
+            }
+            count={inProgressCount}
             onPress={() => router.push('/mes-tournois' as never)}
           />
-          {canCreateTournament ? (
-            <ActionCard
-              icon={Plus}
-              label="Créer un tournoi"
-              subtitle="En moins de 5 minutes"
-              onPress={() => router.push('/(tabs)/tournois/creer' as never)}
-            />
-          ) : null}
-          <ActionCard
-            icon={QrCode}
-            label="Scanner un QR"
-            subtitle="Rejoindre un tournoi en un scan"
-            onPress={() => router.push('/scan' as never)}
-          />
-          <ProposalsActionCard onPress={() => router.push('/proposals')} />
-          <NotificationsActionCard onPress={() => router.push('/notifications' as never)} />
-          <MessagesActionCard onPress={() => router.push('/conversations')} />
           <ActionCard
             icon={Heart}
             label="Partenaires"
@@ -220,18 +317,25 @@ function CockpitPlayer({
             onPress={() => router.push('/(tabs)/partenaires')}
           />
           <ActionCard
-            icon={UserIcon}
-            label="Mon profil"
-            subtitle="Voir et éditer"
-            onPress={() => router.push(`/profil/${userUuid}`)}
+            icon={Inbox}
+            label="Propositions partenaires"
+            subtitle={
+              pendingProposals > 0 ? `${pendingProposals} en attente` : 'Reçues et envoyées'
+            }
+            count={pendingProposals}
+            onPress={() => router.push('/proposals')}
           />
-
-          <Button
+          <ActionCard
+            icon={QrCode}
+            label="Scanner un QR"
+            subtitle="Rejoindre un tournoi en un scan"
+            onPress={() => router.push('/scan' as never)}
+          />
+          <ActionCard
+            icon={LogOut}
             label="Se déconnecter"
-            variant="ghost"
+            tone="danger"
             onPress={onLogout}
-            leftIcon={<LogOut size={18} color="#1A2A4A" />}
-            className="mt-2"
           />
         </Animated.View>
       </ScrollView>
@@ -239,175 +343,35 @@ function CockpitPlayer({
   );
 }
 
-// ──────────────────────────────────────────────────────────────────
-// NotificationsActionCard — badge unread aligné sur useUnreadCounters
-// (partagé avec AppHeader, cache global, pas de double-fetch).
-// ──────────────────────────────────────────────────────────────────
-function NotificationsActionCard({ onPress }: { onPress: () => void }) {
-  const { unreadNotifications } = useUnreadCounters();
-  const subtitle =
-    unreadNotifications > 0
-      ? `${unreadNotifications} non lue${unreadNotifications > 1 ? 's' : ''}`
-      : 'Alertes tournois, inscriptions, messages';
-
+/**
+ * Tuile d'une stat dans la grille hero. Valeur en grand + label petit.
+ * Largeur implicite 1/4 par flex-1 sur parent gap:2.
+ */
+function StatTile({ value, label }: { value: number | string; label: string }) {
   return (
-    <Pressable onPress={onPress}>
-      <Card>
-        <View className="flex-row items-center gap-3">
-          <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
-            <Bell size={20} color="#1A2A4A" />
-            {unreadNotifications > 0 ? (
-              <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-orange px-1">
-                <Text
-                  className="font-heading-black text-white"
-                  style={{ fontSize: 10, lineHeight: 12, includeFontPadding: false, textAlignVertical: 'center' }}
-                >
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <View className="flex-1">
-            <Text variant="body-medium">Notifications</Text>
-            <Text variant="caption" className="mt-0.5">
-              {subtitle}
-            </Text>
-          </View>
-          <ChevronRight size={16} color="#94A3B8" />
-        </View>
-      </Card>
-    </Pressable>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// MessagesActionCard — ActionCard conversations avec badge unread
-// ──────────────────────────────────────────────────────────────────
-function MessagesActionCard({ onPress }: { onPress: () => void }) {
-  const { data } = useConversations();
-  const unread = (data ?? []).filter((c) => c.unread_count > 0).length;
-  const subtitle = unread > 0 ? `${unread} non lue${unread > 1 ? 's' : ''}` : 'Mes conversations';
-
-  return (
-    <Pressable onPress={onPress}>
-      <Card>
-        <View className="flex-row items-center gap-3">
-          <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
-            <MessageCircle size={20} color="#1A2A4A" />
-            {unread > 0 ? (
-              <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-orange px-1">
-                <Text
-                  className="font-heading-black text-white"
-                  style={{ fontSize: 10, lineHeight: 12, includeFontPadding: false, textAlignVertical: 'center' }}
-                >
-                  {unread > 99 ? '99+' : unread}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <View className="flex-1">
-            <Text variant="body-medium">Messages</Text>
-            <Text variant="caption" className="mt-0.5">
-              {subtitle}
-            </Text>
-          </View>
-          <ChevronRight size={16} color="#94A3B8" />
-        </View>
-      </Card>
-    </Pressable>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// ProposalsActionCard — ActionCard avec subtitle dynamique (N en attente)
-// ──────────────────────────────────────────────────────────────────
-function ProposalsActionCard({ onPress }: { onPress: () => void }) {
-  const { data } = useProposals('received');
-  const pendingCount = data?.filter((p) => p.status === 'pending').length ?? 0;
-  const subtitle = pendingCount > 0 ? `${pendingCount} en attente` : 'Reçues et envoyées';
-
-  return (
-    <Pressable onPress={onPress}>
-      <Card>
-        <View className="flex-row items-center gap-3">
-          <View className="relative h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
-            <Inbox size={20} color="#1A2A4A" />
-            {pendingCount > 0 ? (
-              <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-orange px-1">
-                <Text
-                  className="font-heading-black text-white"
-                  style={{ fontSize: 10, lineHeight: 12, includeFontPadding: false, textAlignVertical: 'center' }}
-                >
-                  {pendingCount > 99 ? '99+' : pendingCount}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <View className="flex-1">
-            <Text variant="body-medium">Propositions partenaires</Text>
-            <Text variant="caption" className="mt-0.5">
-              {subtitle}
-            </Text>
-          </View>
-          <ChevronRight size={16} color="#94A3B8" />
-        </View>
-      </Card>
-    </Pressable>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// SeekingBlock — liste des tournois où le joueur s'est déclaré seul
-// ──────────────────────────────────────────────────────────────────
-function SeekingBlock() {
-  const router = useRouter();
-  const { data, isLoading } = useMySeekingTournaments();
-
-  if (isLoading || !data || data.length === 0) return null;
-
-  return (
-    <View className="rounded-3xl border border-brand-orange/30 bg-brand-orange-light p-4">
-      <View className="mb-2 flex-row items-center gap-2">
-        <Search size={16} color="#E8650A" />
-        <Text variant="body-medium" className="text-[14px] text-brand-navy">
-          Je suis seul ({data.length})
-        </Text>
-      </View>
-      <Text variant="caption" className="mb-3">
-        Tu cherches un partenaire sur {data.length === 1 ? 'ce tournoi' : 'ces tournois'} :
+    <View className="flex-1 items-center rounded-2xl bg-white/10 px-2 py-2">
+      <Text
+        className="font-heading-black text-white"
+        style={{ fontSize: 18, lineHeight: 22 }}
+      >
+        {value}
       </Text>
-      <View className="gap-2">
-        {data.map((entry) => (
-          <Pressable
-            key={entry.tournament.uuid}
-            onPress={() => router.push(`/(tabs)/tournois/${entry.tournament.uuid}`)}
-          >
-            <View className="rounded-2xl bg-white p-3">
-              <View className="flex-row items-center gap-2">
-                <Text variant="body-medium" className="flex-1 text-[13px]" numberOfLines={1}>
-                  {entry.tournament.name}
-                </Text>
-                <Badge label={entry.tournament.level} tone="info" />
-              </View>
-              {entry.tournament.club ? (
-                <View className="mt-1 flex-row items-center gap-1">
-                  <MapPin size={12} color="#64748B" />
-                  <Text variant="caption" className="text-[11px]" numberOfLines={1}>
-                    {entry.tournament.club.name} — {entry.tournament.club.city}
-                  </Text>
-                </View>
-              ) : null}
-              {entry.message ? (
-                <Text variant="caption" className="mt-1 text-[11px] italic" numberOfLines={2}>
-                  « {entry.message} »
-                </Text>
-              ) : null}
-            </View>
-          </Pressable>
-        ))}
-      </View>
+      <Text className="mt-0.5 text-white/60" style={{ fontSize: 9 }}>
+        {label}
+      </Text>
     </View>
   );
+}
+
+/**
+ * Wrapper léger autour d'une Image avatar — gère les URLs absolues (Google CDN,
+ * S3) en pass-through. Pas besoin d'expo-image ici, `Image` natif suffit
+ * (l'accessor backend retourne déjà l'URL complète).
+ */
+function ExpoImageCompat({ uri }: { uri: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Image } = require('react-native') as typeof import('react-native');
+  return <Image source={{ uri }} style={{ width: '100%', height: '100%' }} />;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -416,6 +380,9 @@ function SeekingBlock() {
 function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => void }) {
   const router = useRouter();
   const fade = useFadeInUp(0);
+  const { unreadNotifications } = useUnreadCounters();
+  const { data: conversations } = useConversations();
+  const unreadMessages = (conversations ?? []).filter((c) => c.unread_count > 0).length;
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
@@ -451,15 +418,34 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
             subtitle="Mes tournois organisés"
             onPress={() => router.push('/mes-tournois' as never)}
           />
-          <NotificationsActionCard onPress={() => router.push('/notifications' as never)} />
-          <MessagesActionCard onPress={() => router.push('/conversations')} />
+          <ActionCard
+            icon={Bell}
+            label="Notifications"
+            subtitle={
+              unreadNotifications > 0
+                ? `${unreadNotifications} non lue${unreadNotifications > 1 ? 's' : ''}`
+                : 'Alertes, inscriptions, messages'
+            }
+            count={unreadNotifications}
+            onPress={() => router.push('/notifications' as never)}
+          />
+          <ActionCard
+            icon={MessageCircle}
+            label="Messages"
+            subtitle={
+              unreadMessages > 0
+                ? `${unreadMessages} non lu${unreadMessages > 1 ? 's' : ''}`
+                : 'Mes conversations'
+            }
+            count={unreadMessages}
+            onPress={() => router.push('/conversations')}
+          />
 
-          <Button
+          <ActionCard
+            icon={LogOut}
             label="Se déconnecter"
-            variant="ghost"
+            tone="danger"
             onPress={onLogout}
-            leftIcon={<LogOut size={18} color="#1A2A4A" />}
-            className="mt-2"
           />
         </Animated.View>
       </ScrollView>
@@ -468,35 +454,62 @@ function CockpitReferee({ name, onLogout }: { name?: string; onLogout: () => voi
 }
 
 // ──────────────────────────────────────────────────────────────────
-// ActionCard réutilisable
+// ActionCard réutilisable — style épuré Emergent d5ac086 (icon orange direct
+// sans box 40×40, badge count orange si > 0, chevron gris). `tone="danger"`
+// → label rouge pour l'action de déconnexion.
 // ──────────────────────────────────────────────────────────────────
 function ActionCard({
   icon: Icon,
   label,
   subtitle,
+  count,
   onPress,
   disabled,
+  tone = 'default',
 }: {
   icon: IconCmp;
   label: string;
-  subtitle: string;
+  subtitle?: string;
+  count?: number;
   onPress: () => void;
   disabled?: boolean;
+  tone?: 'default' | 'danger';
 }) {
+  const iconColor = tone === 'danger' ? '#DC2626' : '#E8650A';
   return (
     <Pressable onPress={disabled ? undefined : onPress} disabled={disabled}>
       <Card className={disabled ? 'opacity-60' : ''}>
         <View className="flex-row items-center gap-3">
-          <View className="h-11 w-11 items-center justify-center rounded-2xl bg-brand-bg">
-            <Icon size={20} color="#1A2A4A" />
-          </View>
+          <Icon size={18} color={iconColor} />
           <View className="flex-1">
-            <Text variant="body-medium">{label}</Text>
-            <Text variant="caption" className="mt-0.5">
-              {subtitle}
+            <Text
+              variant="body-medium"
+              className={tone === 'danger' ? 'text-brand-danger' : undefined}
+            >
+              {label}
             </Text>
+            {subtitle ? (
+              <Text variant="caption" className="mt-0.5">
+                {subtitle}
+              </Text>
+            ) : null}
           </View>
-          <ChevronRight size={16} color="#94A3B8" />
+          {count && count > 0 ? (
+            <View className="min-w-[20px] items-center justify-center rounded-full bg-brand-orange px-1.5 py-0.5">
+              <Text
+                className="font-heading-black text-white"
+                style={{
+                  fontSize: 10,
+                  lineHeight: 12,
+                  includeFontPadding: false,
+                  textAlignVertical: 'center',
+                }}
+              >
+                {count > 99 ? '99+' : count}
+              </Text>
+            </View>
+          ) : null}
+          <ChevronRight size={14} color="#94A3B8" />
         </View>
       </Card>
     </Pressable>
