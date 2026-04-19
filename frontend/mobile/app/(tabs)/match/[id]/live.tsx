@@ -55,7 +55,7 @@ export default function FriendlyMatchLiveScreen() {
 
   if (matchQuery.isLoading || !match) {
     return (
-      <SafeAreaView edges={['top']} className="flex-1 items-center justify-center bg-brand-bg">
+      <SafeAreaView edges={[]} className="flex-1 items-center justify-center bg-brand-bg">
         <ActivityIndicator color="#E8650A" />
       </SafeAreaView>
     );
@@ -112,7 +112,7 @@ export default function FriendlyMatchLiveScreen() {
     validateMut.mutateAsync(team).catch((err) => Alert.alert('Erreur', formatApiError(err)));
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header */}
         <View className="flex-row items-center gap-3 px-4 pt-2 pb-3">

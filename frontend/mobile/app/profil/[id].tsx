@@ -90,7 +90,7 @@ export default function ProfileScreen() {
 
   if (isLoading || !profile) {
     return (
-      <SafeAreaView edges={['top']} className="flex-1 items-center justify-center bg-brand-bg">
+      <SafeAreaView edges={[]} className="flex-1 items-center justify-center bg-brand-bg">
         <ActivityIndicator color="#E8650A" />
       </SafeAreaView>
     );
@@ -100,7 +100,7 @@ export default function ProfileScreen() {
   const primary = primaryClub(profile);
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header */}
         <View className="flex-row items-center justify-between px-4 pb-2 pt-3">
@@ -189,10 +189,15 @@ export default function ProfileScreen() {
             <View className="mx-5 mt-4 flex-row gap-2">
               <StatCell value={profile.padel_points ?? 0} label="Points" sub="FFT" />
               <StatCell value={profile.ranking ?? '—'} label="Rang" />
-              <StatCell value={profile.padel_level ?? '—'} label="Niveau" />
               <StatCell
-                value={POSITION_LABELS[profile.profile?.position as Position] ?? '—'}
-                label="Position"
+                value={eloQuery.data?.matches_won ?? 0}
+                label="Victoires"
+                valueColor="#059669"
+              />
+              <StatCell
+                value={eloQuery.data?.matches_lost ?? 0}
+                label="Défaites"
+                valueColor="#DC2626"
               />
             </View>
 
@@ -644,10 +649,26 @@ function ClubAutocompleteRow({
   );
 }
 
-function StatCell({ value, label, sub }: { value: string | number; label: string; sub?: string }) {
+function StatCell({
+  value,
+  label,
+  sub,
+  valueColor,
+}: {
+  value: string | number;
+  label: string;
+  sub?: string;
+  valueColor?: string;
+}) {
   return (
     <View className="flex-1 items-center rounded-2xl border border-brand-border bg-white p-2.5">
-      <Text variant="h3" className="text-[18px] text-brand-navy">{value}</Text>
+      <Text
+        variant="h3"
+        className="text-[18px]"
+        style={{ color: valueColor ?? '#1A2A4A' }}
+      >
+        {value}
+      </Text>
       <Text variant="caption" className="text-[9px]">{label}</Text>
       {sub ? <Text variant="caption" className="text-[9px] text-brand-muted">{sub}</Text> : null}
     </View>

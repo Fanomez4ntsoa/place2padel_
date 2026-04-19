@@ -68,7 +68,7 @@ export default function MatchLiveScreen() {
 
   if (matchesQuery.isLoading || tournamentQuery.isLoading) {
     return (
-      <SafeAreaView edges={['top']} className="flex-1 items-center justify-center bg-brand-bg">
+      <SafeAreaView edges={[]} className="flex-1 items-center justify-center bg-brand-bg">
         <ActivityIndicator color="#E8650A" />
       </SafeAreaView>
     );
@@ -76,7 +76,7 @@ export default function MatchLiveScreen() {
 
   if (!match) {
     return (
-      <SafeAreaView edges={['top']} className="flex-1 items-center justify-center bg-brand-bg px-8">
+      <SafeAreaView edges={[]} className="flex-1 items-center justify-center bg-brand-bg px-8">
         <Text variant="h3" className="text-center">Match introuvable</Text>
         <Button label="Retour" variant="ghost" onPress={() => router.back()} className="mt-4" />
       </SafeAreaView>
@@ -143,7 +143,7 @@ export default function MatchLiveScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header */}
         <View className="flex-row items-center gap-3 px-4 pt-2 pb-3">

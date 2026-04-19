@@ -59,14 +59,14 @@ export default function ClubDetailScreen() {
 
   if (clubQuery.isLoading || !club) {
     return (
-      <SafeAreaView edges={['top']} className="flex-1 items-center justify-center bg-brand-bg">
+      <SafeAreaView edges={[]} className="flex-1 items-center justify-center bg-brand-bg">
         <ActivityIndicator color="#E8650A" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Back minimal */}
         <View className="px-4 pt-2 pb-1">

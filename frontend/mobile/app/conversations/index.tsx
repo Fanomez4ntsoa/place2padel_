@@ -12,7 +12,7 @@ export default function ConversationsListScreen() {
   const { data, isLoading } = useConversations();
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <View className="flex-row items-center gap-3 px-4 pt-2 pb-3">
         <Pressable
           onPress={() => router.back()}
