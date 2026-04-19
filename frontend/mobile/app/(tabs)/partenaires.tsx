@@ -1,5 +1,6 @@
-import { ChevronDown, Heart, Trophy, Users } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { ChevronDown, Heart, Sparkles, Trophy, Users } from 'lucide-react-native';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,22 +12,236 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CandidateCard } from '@/components/matching/CandidateCard';
+import { SwipeableCandidate } from '@/components/matching/SwipeableCandidate';
 import { ComingSoonSheet } from '@/components/partners/ComingSoonSheet';
 import { ModePills } from '@/components/partners/ModePills';
 import { PartnerCard } from '@/components/partners/PartnerCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Text } from '@/design-system';
-import { formatApiError } from '@/lib/api';
+import {
+  useMatchingCandidates,
+  useMatchingMatches,
+  useSwipeCandidate,
+} from '@/features/matching/useMatching';
 import type { PartnerMode, SeekingPartner } from '@/features/partners/types';
 import { useProposeToPartner, useSeekingPartners } from '@/features/partners/usePartners';
 import { flattenTournamentPages, useTournaments } from '@/features/tournaments/useTournaments';
+import { formatApiError } from '@/lib/api';
+import { showToast } from '@/lib/toast';
 
 export default function PartenairesScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const isLoggedIn = !!user;
 
-  const [mode, setMode] = useState<PartnerMode>('tournoi');
-  const [comingSoonFor, setComingSoonFor] = useState<'amical' | 'rencontre' | null>(null);
+  // Default 'amical' — matching global activé Phase 4.2.
+  const [mode, setMode] = useState<PartnerMode>('amical');
+  const [comingSoonFor, setComingSoonFor] = useState<'rencontre' | null>(null);
+  const matchesQuery = useMatchingMatches();
+  const matchesCount = matchesQuery.data?.length ?? 0;
+
+  const handleModeChange = (m: PartnerMode) => {
+    if (m === 'rencontre') {
+      setComingSoonFor('rencontre');
+      return;
+    }
+    setMode(m);
+  };
+
+  return (
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
+      {/* Pills + bouton matches alignés horizontalement */}
+      <View className="flex-row items-center border-b border-brand-border/60 bg-white pr-3">
+        <View className="flex-1">
+          <ModePills value={mode} onChange={handleModeChange} />
+        </View>
+        {isLoggedIn ? (
+          <Pressable
+            onPress={() => router.push('/matching/matches' as never)}
+            className="relative ml-1 h-9 w-9 items-center justify-center rounded-full bg-brand-orange-light"
+            hitSlop={6}
+          >
+            <Heart size={16} color="#E8650A" fill="#E8650A" />
+            {matchesCount > 0 ? (
+              <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-brand-orange px-1">
+                <Text
+                  className="font-heading-black text-white"
+                  style={{
+                    fontSize: 10,
+                    lineHeight: 12,
+                    includeFontPadding: false,
+                    textAlignVertical: 'center',
+                  }}
+                >
+                  {matchesCount > 99 ? '99+' : matchesCount}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        ) : null}
+      </View>
+
+      {mode === 'amical' ? <AmicalMode /> : <TournoiMode />}
+
+      <ComingSoonSheet
+        visible={!!comingSoonFor}
+        onClose={() => setComingSoonFor(null)}
+        mode={comingSoonFor ?? 'rencontre'}
+      />
+    </SafeAreaView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MODE AMICAL — matching global avec swipe Reanimated. Phase 4.2.
+// ═══════════════════════════════════════════════════════════════════
+function AmicalMode() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
+  const candidatesQuery = useMatchingCandidates();
+  const swipeMut = useSwipeCandidate();
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  const candidates = candidatesQuery.data ?? [];
+  const current = candidates[currentIdx];
+
+  const handleSwipe = useCallback(
+    (action: 'like' | 'pass') => {
+      if (!current) return;
+
+      // Pour un user non auth : pas de POST, on passe juste la card suivante
+      // pour permettre le browse. Toast d'incitation sur like uniquement.
+      if (!isLoggedIn) {
+        if (action === 'like') {
+          showToast('Connecte-toi pour liker', 'info');
+        }
+        setCurrentIdx((i) => i + 1);
+        return;
+      }
+
+      const targetName = current.first_name ?? current.name;
+      const targetUuid = current.uuid;
+
+      swipeMut
+        .mutateAsync({ target_uuid: targetUuid, action })
+        .then((result) => {
+          setCurrentIdx((i) => i + 1);
+          if (action === 'like' && result.is_match && result.conversation_uuid) {
+            showToast(`Match avec ${targetName} ! 🎾`, 'success');
+            // Petite latence pour laisser le toast apparaître avant la nav.
+            setTimeout(() => {
+              router.push(`/conversations/${result.conversation_uuid}` as never);
+            }, 400);
+          }
+        })
+        .catch((err) => {
+          Alert.alert('Erreur', formatApiError(err));
+        });
+    },
+    [current, isLoggedIn, router, swipeMut],
+  );
+
+  if (candidatesQuery.isLoading) {
+    return (
+      <View className="items-center py-16">
+        <ActivityIndicator color="#E8650A" />
+      </View>
+    );
+  }
+
+  if (candidates.length === 0) {
+    return (
+      <AmicalEmpty
+        title="Aucun joueur à proximité"
+        subtitle={
+          isLoggedIn
+            ? "Reviens plus tard — on cherche des partenaires autour de toi."
+            : "Connecte-toi pour voir les joueurs compatibles avec ton profil."
+        }
+      />
+    );
+  }
+
+  if (!current) {
+    return (
+      <AmicalEmpty
+        title="Plus de joueurs"
+        subtitle="Tu as vu tous les candidats du moment. Reviens bientôt."
+        showReload
+        onReload={() => {
+          setCurrentIdx(0);
+          candidatesQuery.refetch();
+        }}
+      />
+    );
+  }
+
+  return (
+    <ScrollView
+      contentContainerStyle={{ paddingTop: 14, paddingBottom: 100, paddingHorizontal: 16 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <SwipeableCandidate
+        key={current.uuid}
+        candidate={current}
+        onSwipeComplete={handleSwipe}
+        isPending={swipeMut.isPending}
+      />
+      <Text
+        variant="caption"
+        className="mt-3 text-center text-[11px]"
+        style={{ color: '#94A3B8' }}
+      >
+        {currentIdx + 1} / {candidates.length}
+      </Text>
+    </ScrollView>
+  );
+}
+
+function AmicalEmpty({
+  title,
+  subtitle,
+  showReload,
+  onReload,
+}: {
+  title: string;
+  subtitle: string;
+  showReload?: boolean;
+  onReload?: () => void;
+}) {
+  return (
+    <View className="items-center px-6 py-16">
+      <View className="mb-3 h-16 w-16 items-center justify-center rounded-3xl bg-slate-50">
+        <Sparkles size={28} color="#CBD5E1" />
+      </View>
+      <Text variant="h3" className="text-[16px]">
+        {title}
+      </Text>
+      <Text variant="caption" className="mt-1 text-center">
+        {subtitle}
+      </Text>
+      {showReload ? (
+        <Pressable
+          onPress={onReload}
+          className="mt-4 rounded-full bg-brand-orange px-4 py-2"
+        >
+          <Text className="font-heading text-[12px] text-white">Recharger</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MODE TOURNOI — code existant (seeking-partners) légèrement extrait.
+// ═══════════════════════════════════════════════════════════════════
+function TournoiMode() {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   const [tournamentUuid, setTournamentUuid] = useState<string | null>(null);
   const [tournamentPickerOpen, setTournamentPickerOpen] = useState(false);
   const [passedUuids, setPassedUuids] = useState<Set<string>>(new Set());
@@ -38,20 +253,12 @@ export default function PartenairesScreen() {
   );
   const selectedTournament = tournaments.find((t) => t.uuid === tournamentUuid);
 
-  const seekingQuery = useSeekingPartners(mode === 'tournoi' ? tournamentUuid : null);
+  const seekingQuery = useSeekingPartners(tournamentUuid);
   const proposeMut = useProposeToPartner(tournamentUuid ?? '');
 
   const candidates = (seekingQuery.data?.data ?? []).filter(
     (p) => !passedUuids.has(p.user.uuid),
   );
-
-  const handleModeChange = (m: PartnerMode) => {
-    if (m === 'amical' || m === 'rencontre') {
-      setComingSoonFor(m);
-      return;
-    }
-    setMode(m);
-  };
 
   const handlePass = (p: SeekingPartner) => {
     setPassedUuids((prev) => new Set(prev).add(p.user.uuid));
@@ -73,9 +280,7 @@ export default function PartenairesScreen() {
   };
 
   return (
-    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
-      <ModePills value={mode} onChange={handleModeChange} />
-
+    <>
       {/* Sélecteur tournoi */}
       <View className="px-4 pt-3">
         <Pressable
@@ -96,7 +301,6 @@ export default function PartenairesScreen() {
         </Pressable>
       </View>
 
-      {/* Contenu */}
       {!tournamentUuid ? (
         <EmptyState
           icon={<Trophy size={28} color="#CBD5E1" />}
@@ -138,7 +342,6 @@ export default function PartenairesScreen() {
         />
       )}
 
-      {/* Modal sélection tournoi */}
       <Modal
         visible={tournamentPickerOpen}
         transparent
@@ -183,13 +386,7 @@ export default function PartenairesScreen() {
           </ScrollView>
         </View>
       </Modal>
-
-      <ComingSoonSheet
-        visible={!!comingSoonFor}
-        onClose={() => setComingSoonFor(null)}
-        mode={comingSoonFor ?? 'amical'}
-      />
-    </SafeAreaView>
+    </>
   );
 }
 
