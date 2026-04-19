@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ClaimClubSheet } from '@/components/clubs/ClaimClubSheet';
 import { ClubRow } from '@/components/clubs/ClubRow';
 import { useAuth } from '@/contexts/AuthContext';
-import { Text } from '@/design-system';
+import { Button, Text } from '@/design-system';
 import type { Club } from '@/features/clubs/types';
 import { flattenClubs, useClubsSearch, useMyClubs } from '@/features/clubs/useClubs';
 
@@ -21,9 +22,11 @@ export default function ClubsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isLoggedIn = !!user;
+  const canClaim = user?.role === 'club_owner' || user?.role === 'admin';
 
   const [rawQuery, setRawQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [claimingClub, setClaimingClub] = useState<Club | null>(null);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedQuery(rawQuery.trim()), 300);
@@ -52,10 +55,22 @@ export default function ClubsScreen() {
   const renderItem = useCallback(
     ({ item }: { item: Club }) => (
       <View className="px-4 pb-2.5">
-        <ClubRow club={item} onPress={() => openClub(item)} />
+        <ClubRow
+          club={item}
+          onPress={() => openClub(item)}
+          rightAction={
+            canClaim && !item.owner_id ? (
+              <Button
+                label="C'est mon club — Revendiquer"
+                variant="ghost"
+                onPress={() => setClaimingClub(item)}
+              />
+            ) : null
+          }
+        />
       </View>
     ),
-    [],
+    [canClaim],
   );
 
   // État initial non recherché : empty hint + "Mes clubs" si loggé
@@ -179,6 +194,15 @@ export default function ClubsScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+      />
+
+      <ClaimClubSheet
+        club={claimingClub}
+        onClose={() => setClaimingClub(null)}
+        onSuccess={(claimed) => {
+          setClaimingClub(null);
+          router.push(`/clubs/${claimed.uuid}`);
+        }}
       />
     </SafeAreaView>
   );

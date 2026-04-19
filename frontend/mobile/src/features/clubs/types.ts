@@ -14,6 +14,13 @@ export interface Club {
   email: string | null;
   website: string | null;
   courts_count: number | null;
+  indoor: boolean | null;
+  picture_url: string | null;
+  description: string | null;
+  club_type: 'associatif' | 'prive' | null;
+  owner_id: string | null;
+  owner?: { uuid: string; name: string };
+  claimed_at: string | null;
 }
 
 export interface ClubSearchFilters {

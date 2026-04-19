@@ -95,6 +95,28 @@ export function useMyClubs() {
 }
 
 /**
+ * POST /clubs/claim — revendiquer la propriété d'un club (role=club_owner ou admin).
+ * Invalide la liste de recherche + le détail du club pour afficher l'owner à jour.
+ */
+export function useClaimClub() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      club_uuid?: string;
+      club_name?: string;
+      club_type: 'associatif' | 'prive';
+    }) => {
+      const { data } = await api.post('/clubs/claim', payload);
+      return data.data as Club;
+    },
+    onSuccess: (club) => {
+      qc.invalidateQueries({ queryKey: ['clubs', 'search'] });
+      qc.invalidateQueries({ queryKey: ['club', club.uuid] });
+    },
+  });
+}
+
+/**
  * Toggle subscribe/unsubscribe sur un club. Utilise `isSubscribed` pour router
  * entre POST/DELETE. Met à jour la liste `clubs/subscriptions` dans le cache.
  */

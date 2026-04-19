@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\ClubFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -32,6 +33,12 @@ class Club extends Model
         'website',
         'courts_count',
         'is_active',
+        'owner_id',
+        'club_type',
+        'description',
+        'picture_url',
+        'indoor',
+        'claimed_at',
     ];
 
     protected static function booted(): void
@@ -50,6 +57,8 @@ class Club extends Model
             'longitude' => 'decimal:8',
             'courts_count' => 'integer',
             'is_active' => 'boolean',
+            'indoor' => 'boolean',
+            'claimed_at' => 'datetime',
         ];
     }
 
@@ -58,9 +67,9 @@ class Club extends Model
         return 'uuid';
     }
 
-    public function users(): HasMany
+    public function owner(): BelongsTo
     {
-        return $this->hasMany(User::class);
+        return $this->belongsTo(User::class, 'owner_id');
     }
 
     public function subscribers(): BelongsToMany

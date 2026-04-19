@@ -27,6 +27,19 @@ class ClubResource extends JsonResource
             'email' => $this->email,
             'website' => $this->website,
             'courts_count' => $this->courts_count,
+            'indoor' => $this->indoor,
+            'picture_url' => $this->picture_url,
+            'description' => $this->description,
+            'club_type' => $this->club_type,
+            'owner' => $this->when(
+                $this->relationLoaded('owner') && $this->owner,
+                fn () => [
+                    'uuid' => $this->owner->uuid,
+                    'name' => $this->owner->name,
+                ],
+            ),
+            'owner_id' => $this->owner_id !== null ? (string) $this->owner_id : null,
+            'claimed_at' => $this->claimed_at?->toIso8601String(),
         ];
     }
 }

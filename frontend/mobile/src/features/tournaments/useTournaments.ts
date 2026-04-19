@@ -6,6 +6,7 @@ import type { TournamentLevel, TournamentStatus, TournamentSummary } from './typ
 
 export interface TournamentFilters {
   city?: string;
+  clubUuid?: string;
   level?: TournamentLevel | '';
   status?: TournamentStatus | '';
   dateFrom?: string;
@@ -39,6 +40,7 @@ export function useTournaments(filters: TournamentFilters) {
         per_page: filters.perPage ?? 20,
       };
       if (filters.city?.trim()) params.city = filters.city.trim();
+      if (filters.clubUuid) params.club_uuid = filters.clubUuid;
       if (filters.level) params.level = filters.level;
       if (filters.status) params.status = filters.status;
       if (filters.dateFrom) params.date_from = filters.dateFrom;
