@@ -161,26 +161,6 @@ export default function LoginScreen() {
                 leftIcon={!submitting ? <ArrowRight size={18} color="#FFFFFF" /> : undefined}
               />
 
-              {/* Séparateur "ou" */}
-              <View className="my-5 flex-row items-center">
-                <View className="h-px flex-1 bg-brand-border" />
-                <Text variant="caption" className="mx-3">
-                  ou
-                </Text>
-                <View className="h-px flex-1 bg-brand-border" />
-              </View>
-
-              {/* Google OAuth — Phase 6.2 */}
-              <Button
-                label="Continuer avec Google"
-                variant="ghost"
-                disabled
-                onPress={() => undefined}
-              />
-              <Text variant="caption" className="mt-2 text-center">
-                Google OAuth disponible en Phase 6.2.
-              </Text>
-
               <View className="mt-5 flex-row items-center justify-center">
                 <Text variant="caption">Pas encore de compte ?</Text>
                 <Link href="/(auth)/register" asChild>
