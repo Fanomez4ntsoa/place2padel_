@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Send } from 'lucide-react-native';
+import { ArrowLeft, Send, Swords, Trophy } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ProposeFriendlyMatchSheet } from '@/components/chat/ProposeFriendlyMatchSheet';
+import { ProposeTournamentSheet } from '@/components/chat/ProposeTournamentSheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { Text } from '@/design-system';
 import { formatApiError } from '@/lib/api';
@@ -36,6 +38,7 @@ export default function ChatScreen() {
   const markReadMut = useMarkConversationRead();
 
   const [text, setText] = useState('');
+  const [sheet, setSheet] = useState<'tournament' | 'friendly' | null>(null);
   const listRef = useRef<FlatList<PrivateMessage>>(null);
 
   const conversation = useMemo(
@@ -76,28 +79,50 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1"
       >
         {/* Header */}
-        <View className="flex-row items-center gap-3 border-b border-brand-border bg-white px-4 pb-3 pt-2">
-          <Pressable
-            onPress={() => router.back()}
-            className="h-9 w-9 items-center justify-center rounded-full"
-            hitSlop={8}
-          >
-            <ArrowLeft size={20} color="#1A2A4A" />
-          </Pressable>
-          <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-navy">
-            <Text className="text-[13px] font-heading-black text-white">{initial}</Text>
+        <View className="border-b border-brand-border bg-white">
+          <View className="flex-row items-center gap-3 px-4 pb-2 pt-2">
+            <Pressable
+              onPress={() => router.back()}
+              className="h-9 w-9 items-center justify-center rounded-full"
+              hitSlop={8}
+            >
+              <ArrowLeft size={20} color="#1A2A4A" />
+            </Pressable>
+            <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-navy">
+              <Text className="text-[13px] font-heading-black text-white">{initial}</Text>
+            </View>
+            <View className="flex-1">
+              <Text variant="body-medium" className="text-[14px]" numberOfLines={1}>
+                {otherUser?.name ?? 'Discussion'}
+              </Text>
+            </View>
           </View>
-          <View className="flex-1">
-            <Text variant="body-medium" className="text-[14px]" numberOfLines={1}>
-              {otherUser?.name ?? 'Discussion'}
-            </Text>
-          </View>
+
+          {/* CTAs propositions — port chat Emergent d5ac086 ChatPage.js (2 dialogs) */}
+          {otherUser ? (
+            <View className="flex-row gap-2 px-4 pb-3">
+              <Pressable
+                onPress={() => setSheet('tournament')}
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-full border border-brand-orange/30 bg-brand-orange-light py-2"
+              >
+                <Trophy size={13} color="#E8650A" />
+                <Text className="font-heading text-[12px] text-brand-orange">Proposer un tournoi</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setSheet('friendly')}
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-full border border-brand-navy/20 bg-slate-50 py-2"
+              >
+                <Swords size={13} color="#1A2A4A" />
+                <Text className="font-heading text-[12px] text-brand-navy">Match amical</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         {/* Messages */}
@@ -139,6 +164,26 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Sheets propositions — rendus hors KeyboardAvoidingView pour overlay plein écran */}
+      {otherUser ? (
+        <>
+          <ProposeTournamentSheet
+            visible={sheet === 'tournament'}
+            onClose={() => setSheet(null)}
+            targetUser={{ uuid: otherUser.uuid, name: otherUser.name }}
+          />
+          <ProposeFriendlyMatchSheet
+            visible={sheet === 'friendly'}
+            onClose={() => setSheet(null)}
+            opponent1={{
+              uuid: otherUser.uuid,
+              name: otherUser.name,
+              picture_url: otherUser.picture_url ?? null,
+            }}
+          />
+        </>
+      ) : null}
     </SafeAreaView>
   );
 }

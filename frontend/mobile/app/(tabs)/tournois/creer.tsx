@@ -149,7 +149,7 @@ export default function CreateTournamentScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-brand-bg">
+    <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       {/* Hero navy + barre de progression */}
       <LinearGradient
         colors={['#1A2A4A', '#2A4A6A']}
