@@ -1,7 +1,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
+  ArrowRight,
   Bell,
+  Building2,
   ChevronRight,
   Heart,
   Inbox,
@@ -12,7 +14,6 @@ import {
   Plus,
   QrCode,
   Search,
-  Swords,
   Trophy,
   User as UserIcon,
   X,
@@ -93,88 +94,209 @@ export default function CockpitScreen() {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Preview non authentifié
+// Preview non authentifié — port RegisterPage.js account selector Emergent d5ac086
+// (hero navy + barre "Se connecter" + 3 cartes chipées → /register?accountType=X).
 // ──────────────────────────────────────────────────────────────────
+type PreviewRole = 'player' | 'referee' | 'club_owner';
+
 function CockpitPreview({
   onRegister,
   onLogin,
 }: {
-  onRegister: (accountType: 'player' | 'referee') => void;
+  onRegister: (accountType: PreviewRole) => void;
   onLogin: () => void;
 }) {
-  const fade = useFadeInUp(0);
-
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* HERO compact */}
         <LinearGradient
           colors={['#1A2A4A', '#2A4A6A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 24, paddingTop: 32, paddingBottom: 48 }}
+          style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 }}
         >
-          <Text variant="caption" className="text-white/50">Mon cockpit</Text>
-          <Text variant="h1" className="mt-1 text-white">
-            Qui es-tu ?
+          <Text variant="h2" className="text-white" style={{ fontSize: 22 }}>
+            Rejoins PlaceToPadel 🎾
           </Text>
-          <Text variant="caption" className="mt-2 text-white/60">
-            Découvre ton cockpit personnel selon ton profil.
+          <Text variant="caption" className="mt-1 text-white/60" style={{ fontSize: 12 }}>
+            Choisis ton profil pour commencer
           </Text>
         </LinearGradient>
 
-        <Animated.View style={fade} className="-mt-6 gap-4 px-5">
-          <RoleCard
-            icon={Swords}
-            title="Compétiteur"
-            subtitle="Joueur de padel"
-            description="Trouve des tournois, inscris-toi, suis tes scores en direct, gère tes partenaires et ton classement FFT."
+        {/* Barre "Tu as déjà un compte ? · Se connecter →" */}
+        <View className="flex-row items-center justify-between border-b border-brand-border bg-white px-5 py-2.5">
+          <Text variant="caption" className="text-[13px]">
+            Tu as déjà un compte&nbsp;?
+          </Text>
+          <Pressable
+            onPress={onLogin}
+            className="rounded-full bg-brand-navy px-4 py-1.5"
+            hitSlop={6}
+          >
+            <Text className="font-heading text-[13px] text-white">Se connecter →</Text>
+          </Pressable>
+        </View>
+
+        {/* 3 cartes */}
+        <View className="gap-3 px-4 pb-4 pt-3.5">
+          {/* Joueur — fond orange light + border orange */}
+          <PreviewRoleCard
+            icon={UserIcon}
+            title="Je suis joueur ou coach"
+            subtitle="Tournois, matching partenaire, matchs amicaux près de chez toi."
+            chips={[
+              'Gratuit',
+              'Tournois',
+              'Matchs amicaux',
+              'Matching partenaire',
+              'Score live',
+              '% Compatibilité de jeu',
+            ]}
+            variant="player"
             onPress={() => onRegister('player')}
           />
-          <RoleCard
+
+          {/* Juge arbitre — fond orange solide */}
+          <PreviewRoleCard
             icon={Trophy}
-            title="Juge arbitre"
-            subtitle="Organisateur"
-            description="Crée tes tournois, gère les inscriptions, génère les tableaux et les convocations en un clic."
+            title="Je suis juge arbitre"
+            subtitle="Crée et gère tes tournois en 5 minutes. Gratuit pour toujours."
+            chips={['Gratuit', '100% automatisé', 'Tableaux automatiques', 'Score live']}
+            variant="referee"
             onPress={() => onRegister('referee')}
           />
 
-          <Button label="Je suis déjà inscrit" variant="ghost" onPress={onLogin} className="mt-2" />
-        </Animated.View>
+          {/* Patron de club — fond blanc + border navy */}
+          <PreviewRoleCard
+            icon={Building2}
+            title="Je suis patron de club"
+            subtitle="Gère la page de ton club, publie des annonces, vois tes membres et tes tournois."
+            chips={['Page club', 'Mes membres', 'Mes tournois', 'Publications', 'Boutique à venir']}
+            variant="club_owner"
+            onPress={() => onRegister('club_owner')}
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function RoleCard({
+/**
+ * Carte rôle avec chips — 3 variantes visuelles alignées Emergent :
+ *   player     : fond #FFF0E6, border orange, icon dans carré orange solide
+ *   referee    : fond orange solide #E8650A, chips blancs translucides
+ *   club_owner : fond blanc, border navy, icon dans carré navy solide
+ */
+function PreviewRoleCard({
   icon: Icon,
   title,
   subtitle,
-  description,
+  chips,
+  variant,
   onPress,
 }: {
   icon: IconCmp;
   title: string;
   subtitle: string;
-  description: string;
+  chips: string[];
+  variant: PreviewRole;
   onPress: () => void;
 }) {
+  const styles = VARIANT_STYLES[variant];
   return (
-    <Pressable onPress={onPress}>
-      <Card>
-        <View className="mb-3 flex-row items-center gap-4">
-          <View className="h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange-light">
-            <Icon size={26} color="#E8650A" />
-          </View>
-          <View>
-            <Text variant="h3">{title}</Text>
-            <Text variant="caption">{subtitle}</Text>
-          </View>
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-center gap-3.5 rounded-[20px] p-4"
+      style={{
+        backgroundColor: styles.cardBg,
+        borderWidth: 2,
+        borderColor: styles.cardBorder,
+      }}
+    >
+      <View
+        className="h-12 w-12 items-center justify-center rounded-[14px]"
+        style={{ backgroundColor: styles.iconBg }}
+      >
+        <Icon size={22} color={styles.iconColor} />
+      </View>
+      <View className="flex-1">
+        <Text
+          className="font-heading-black text-[16px]"
+          style={{ color: styles.titleColor, marginBottom: 4 }}
+        >
+          {title}
+        </Text>
+        <Text className="text-[11px]" style={{ color: styles.subColor, lineHeight: 16 }}>
+          {subtitle}
+        </Text>
+        <View className="mt-2 flex-row flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <View
+              key={chip}
+              className="rounded-full px-2 py-0.5"
+              style={{ backgroundColor: styles.chipBg }}
+            >
+              <Text className="font-heading text-[10px]" style={{ color: styles.chipColor }}>
+                {chip}
+              </Text>
+            </View>
+          ))}
         </View>
-        <Text variant="caption">{description}</Text>
-      </Card>
+      </View>
+      <ArrowRight size={18} color={styles.arrowColor} />
     </Pressable>
   );
 }
+
+const VARIANT_STYLES: Record<
+  PreviewRole,
+  {
+    cardBg: string;
+    cardBorder: string;
+    iconBg: string;
+    iconColor: string;
+    titleColor: string;
+    subColor: string;
+    chipBg: string;
+    chipColor: string;
+    arrowColor: string;
+  }
+> = {
+  player: {
+    cardBg: '#FFF0E6',
+    cardBorder: '#E8650A',
+    iconBg: '#E8650A',
+    iconColor: '#FFFFFF',
+    titleColor: '#1A2A4A',
+    subColor: '#64748B',
+    chipBg: 'rgba(232,101,10,0.15)',
+    chipColor: '#C75508',
+    arrowColor: '#E8650A',
+  },
+  referee: {
+    cardBg: '#E8650A',
+    cardBorder: '#E8650A',
+    iconBg: 'rgba(255,255,255,0.2)',
+    iconColor: '#FFFFFF',
+    titleColor: '#FFFFFF',
+    subColor: 'rgba(255,255,255,0.8)',
+    chipBg: 'rgba(255,255,255,0.2)',
+    chipColor: '#FFFFFF',
+    arrowColor: 'rgba(255,255,255,0.9)',
+  },
+  club_owner: {
+    cardBg: '#FFFFFF',
+    cardBorder: '#1A2A4A',
+    iconBg: '#1A2A4A',
+    iconColor: '#FFFFFF',
+    titleColor: '#1A2A4A',
+    subColor: '#64748B',
+    chipBg: '#EEF1F7',
+    chipColor: '#1A2A4A',
+    arrowColor: '#1A2A4A',
+  },
+};
 
 // ──────────────────────────────────────────────────────────────────
 // Cockpit joueur authentifié
