@@ -26,6 +26,7 @@ class TournamentMatch extends Model
         'tiebreak_team1',
         'tiebreak_team2',
         'status',
+        'started_at',
         'validated_by_team1',
         'validated_by_team2',
         'winner_team_id',
@@ -55,6 +56,7 @@ class TournamentMatch extends Model
             'validated_by_team2' => 'boolean',
             'court' => 'integer',
             'estimated_time' => 'datetime',
+            'started_at' => 'datetime',
         ];
     }
 

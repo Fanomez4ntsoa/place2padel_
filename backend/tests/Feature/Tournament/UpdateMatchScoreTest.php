@@ -83,6 +83,52 @@ class UpdateMatchScoreTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_tournament_owner_can_set_score(): void
+    {
+        // Port Emergent MatchLivePage.js:96 `canScore = isOwner || isPlayer1
+        // || isPlayer2` — l'organisateur non-participant peut saisir le score.
+        [$t] = $this->seedTournament();
+        $match = TournamentMatch::where('tournament_id', $t->id)->first();
+        $owner = User::find($t->created_by_user_id);
+
+        $this->putJson("/api/v1/matches/{$match->uuid}/score", [
+            'team1_games' => 9, 'team2_games' => 4,
+        ], ['Authorization' => "Bearer {$this->token($owner)}"])
+            ->assertOk()
+            ->assertJsonPath('data.score.team1_games', 9);
+    }
+
+    public function test_admin_can_set_score(): void
+    {
+        [$t] = $this->seedTournament();
+        $match = TournamentMatch::where('tournament_id', $t->id)->first();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->putJson("/api/v1/matches/{$match->uuid}/score", [
+            'team1_games' => 7, 'team2_games' => 5,
+        ], ['Authorization' => "Bearer {$this->token($admin)}"])
+            ->assertOk();
+    }
+
+    public function test_started_at_is_captured_on_first_score(): void
+    {
+        // Rempli lors de la transition pending → in_progress (1ère saisie).
+        [$t] = $this->seedTournament();
+        $match = TournamentMatch::where('tournament_id', $t->id)->first();
+        $this->assertNull($match->started_at, 'Match freshly generated should have null started_at');
+
+        $captain = $match->team1->captain;
+        $res = $this->putJson("/api/v1/matches/{$match->uuid}/score", [
+            'team1_games' => 3, 'team2_games' => 2,
+        ], ['Authorization' => "Bearer {$this->token($captain)}"]);
+
+        $res->assertOk();
+        $this->assertNotNull($res->json('data.started_at'));
+
+        $match->refresh();
+        $this->assertNotNull($match->started_at);
+    }
+
     public function test_unauthenticated_is_401(): void
     {
         [$t] = $this->seedTournament();

@@ -27,6 +27,7 @@ class MatchResource extends JsonResource
                 'tiebreak_team2' => $this->tiebreak_team2,
             ],
             'status' => $this->status,
+            'started_at' => $this->started_at?->toIso8601String(),
             'validated_by_team1' => $this->validated_by_team1,
             'validated_by_team2' => $this->validated_by_team2,
             'winner' => $this->compactTeam($this->winner),

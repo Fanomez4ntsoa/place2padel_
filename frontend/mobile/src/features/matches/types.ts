@@ -25,6 +25,8 @@ export interface TournamentMatch {
   team2: MatchTeam | null;
   score: MatchScore;
   status: MatchStatus;
+  /** Rempli à la 1ère saisie de score (transition pending → in_progress). */
+  started_at: string | null;
   validated_by_team1: boolean;
   validated_by_team2: boolean;
   winner: MatchTeam | null;
