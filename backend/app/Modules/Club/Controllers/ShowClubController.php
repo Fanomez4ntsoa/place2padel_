@@ -16,6 +16,12 @@ class ShowClubController extends Controller
             abort(404);
         }
 
+        // Enrichit la réponse avec l'owner éventuel (affichage "Patron inscrit"
+        // + lecture des posts du patron pour le feed club) et le compteur
+        // d'abonnés (stat "Joueurs" du hero ClubDetailPage).
+        $club->loadMissing('owner');
+        $club->loadCount('subscriptions');
+
         return new ClubResource($club);
     }
 }

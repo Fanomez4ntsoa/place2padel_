@@ -40,6 +40,12 @@ class ClubResource extends JsonResource
             ),
             'owner_id' => $this->owner_id !== null ? (string) $this->owner_id : null,
             'claimed_at' => $this->claimed_at?->toIso8601String(),
+            // Compteur d'abonnés — exposé uniquement si loadCount('subscriptions')
+            // a été appelé (endpoint /clubs/{uuid} détail, pas sur la recherche).
+            'subscribers_count' => $this->when(
+                $this->subscriptions_count !== null,
+                fn () => (int) $this->subscriptions_count,
+            ),
         ];
     }
 }

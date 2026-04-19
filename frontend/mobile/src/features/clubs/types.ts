@@ -21,6 +21,8 @@ export interface Club {
   owner_id: string | null;
   owner?: { uuid: string; name: string };
   claimed_at: string | null;
+  /** Exposé uniquement par GET /clubs/{uuid} (détail), pas par la recherche. */
+  subscribers_count?: number;
 }
 
 export interface ClubSearchFilters {

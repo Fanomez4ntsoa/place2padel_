@@ -1,15 +1,20 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
-  BellRing,
+  Bell,
+  BellOff,
   Building2,
+  CalendarClock,
+  ChevronRight,
   Globe,
   Heart,
   Mail,
   MapPin,
+  MessageCircle,
   Phone,
-  Star,
+  ShoppingBag,
   Trophy,
 } from 'lucide-react-native';
 import {
@@ -22,11 +27,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { aspectRatioFor } from '@/components/feed/postAspect';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button, Card, Text } from '@/design-system';
-import { formatApiError } from '@/lib/api';
-import { useClub, useMyClubs, useToggleClubSubscription } from '@/features/clubs/useClubs';
+import { Card, Text } from '@/design-system';
+import {
+  useClub,
+  useMyClubs,
+  useToggleClubSubscription,
+} from '@/features/clubs/useClubs';
+import { flattenFeed, useProfilePosts } from '@/features/feed/useFeed';
+import type { FeedPost } from '@/features/feed/types';
 import { flattenTournamentPages, useTournaments } from '@/features/tournaments/useTournaments';
+import { formatApiError } from '@/lib/api';
 
 export default function ClubDetailScreen() {
   const router = useRouter();
@@ -38,15 +50,19 @@ export default function ClubDetailScreen() {
   const myClubsQuery = useMyClubs();
   const toggleMut = useToggleClubSubscription();
   const tournamentsQuery = useTournaments({ clubUuid: id, perPage: 6 });
+  const ownerPostsQuery = useProfilePosts(clubQuery.data?.owner?.uuid);
 
   const club = clubQuery.data;
   const isSubscribed = !!myClubsQuery.data?.some((c) => c.uuid === id);
-  const tournaments = flattenTournamentPages(tournamentsQuery.data?.pages).slice(0, 6);
+  const tournaments = flattenTournamentPages(tournamentsQuery.data?.pages);
+  const tournamentsCount = tournamentsQuery.data?.pages[0]?.meta.total ?? 0;
+  const openTournaments = tournaments.filter((t) => t.status === 'open').slice(0, 3);
+  const posts = flattenFeed(ownerPostsQuery.data);
   const isOwner = !!user && club?.owner?.uuid === user.uuid;
 
   const handleToggle = async () => {
     if (!isLoggedIn) {
-      Alert.alert('Connexion requise', 'Connecte-toi pour t\'abonner aux clubs.');
+      Alert.alert('Connexion requise', "Connecte-toi pour suivre ce club.");
       return;
     }
     if (!club) return;
@@ -57,6 +73,13 @@ export default function ClubDetailScreen() {
     }
   };
 
+  const openMaps = () => {
+    if (!club?.address) return;
+    // Google Maps universal link — ouvre l'app native si installée, sinon le web.
+    const query = encodeURIComponent(`${club.address}, ${club.city}`);
+    void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+  };
+
   if (clubQuery.isLoading || !club) {
     return (
       <SafeAreaView edges={[]} className="flex-1 items-center justify-center bg-brand-bg">
@@ -65,228 +88,561 @@ export default function ClubDetailScreen() {
     );
   }
 
+  const subscribersCount = club.subscribers_count ?? 0;
+  const courtsCount = club.courts_count;
+
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-brand-bg">
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Back minimal */}
-        <View className="px-4 pt-2 pb-1">
-          <Pressable
-            onPress={() => router.back()}
-            className="h-9 w-9 items-center justify-center rounded-full"
-            hitSlop={8}
-          >
-            <ArrowLeft size={20} color="#1A2A4A" />
-          </Pressable>
-        </View>
+      <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
+        {/* ── Header navy compact (port ClubDetailPage.js:111-146) ── */}
+        <LinearGradient
+          colors={['#1A2A4A', '#2A4A6A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 }}
+        >
+          {/* Ligne 1 : back + logo + nom/ville + toggle Suivre/Suivi */}
+          <View className="flex-row items-center gap-3">
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={8}
+              className="h-[34px] w-[34px] items-center justify-center rounded-full"
+              style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
+            >
+              <ArrowLeft size={16} color="#FFFFFF" />
+            </Pressable>
 
-        {/* Picture (si patron a uploadé) */}
-        {club.picture_url ? (
-          <View className="mb-3 px-4">
-            <View className="overflow-hidden rounded-3xl bg-slate-100" style={{ aspectRatio: 16 / 9 }}>
-              <Image
-                source={club.picture_url}
-                style={{ width: '100%', height: '100%' }}
-                contentFit="cover"
-              />
+            <View
+              className="h-12 w-12 items-center justify-center overflow-hidden rounded-[14px]"
+              style={{
+                backgroundColor: 'rgba(232,101,10,0.25)',
+                borderWidth: 2,
+                borderColor: 'rgba(232,101,10,0.4)',
+              }}
+            >
+              {club.picture_url ? (
+                <Image
+                  source={club.picture_url}
+                  style={{ width: '100%', height: '100%' }}
+                  contentFit="cover"
+                />
+              ) : (
+                <Building2 size={22} color="#E8650A" />
+              )}
             </View>
-          </View>
-        ) : null}
 
-        {/* Hero */}
-        <View className="px-5 pb-4">
-          <View className="mb-3 flex-row items-center gap-3">
-            <View className="h-16 w-16 items-center justify-center rounded-3xl bg-brand-orange-light">
-              <Building2 size={30} color="#E8650A" />
-            </View>
-            {club.owner_id ? (
-              <View className="flex-row items-center gap-1 rounded-full bg-brand-orange-light px-2.5 py-1">
-                <Star size={11} fill="#E8650A" color="#E8650A" />
-                <Text className="font-heading text-[10px] text-brand-orange">
-                  Patron inscrit
-                </Text>
-              </View>
-            ) : null}
-            {club.club_type ? (
-              <View className="rounded-full bg-slate-100 px-2.5 py-1">
-                <Text className="font-heading text-[10px] text-brand-navy">
-                  {club.club_type === 'associatif' ? '🤝 Associatif' : '🏢 Privé'}
-                </Text>
-              </View>
-            ) : null}
-            {club.indoor === true ? (
-              <View className="rounded-full bg-slate-100 px-2.5 py-1">
-                <Text className="font-heading text-[10px] text-brand-navy">🏠 Couvert</Text>
-              </View>
-            ) : club.indoor === false ? (
-              <View className="rounded-full bg-slate-100 px-2.5 py-1">
-                <Text className="font-heading text-[10px] text-brand-navy">☀️ Extérieur</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text variant="h2" className="text-[22px]">
-            {club.name}
-          </Text>
-          <View className="mt-1 flex-row items-center gap-1">
-            <MapPin size={13} color="#64748B" />
-            <Text variant="caption" className="text-[13px]">
-              {club.city}
-              {club.postal_code ? ` · ${club.postal_code}` : ''}
-              {club.region ? ` · ${club.region}` : ''}
-            </Text>
-          </View>
-          {isOwner ? (
-            <View className="mt-2 self-start rounded-full bg-green-50 px-3 py-1">
-              <Text className="font-heading text-[11px] text-green-700">
-                ✓ Tu es le patron de ce club
+            <View className="flex-1">
+              <Text
+                className="font-heading-black text-white"
+                style={{ fontSize: 16, lineHeight: 20 }}
+                numberOfLines={1}
+              >
+                {club.name}
               </Text>
+              <View className="mt-0.5 flex-row items-center gap-1">
+                <MapPin size={10} color="rgba(255,255,255,0.55)" />
+                <Text
+                  style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}
+                  numberOfLines={1}
+                >
+                  {club.city}
+                  {club.department ? ` · ${club.department}` : ''}
+                </Text>
+              </View>
             </View>
-          ) : null}
-        </View>
 
-        {/* Description (optionnelle, rédigée par le patron) */}
-        {club.description ? (
-          <View className="mx-5 mb-4">
-            <Card>
+            <Pressable
+              onPress={handleToggle}
+              disabled={toggleMut.isPending}
+              className="flex-row items-center gap-1.5 rounded-full px-3.5 py-2"
+              style={{
+                backgroundColor: isSubscribed
+                  ? 'rgba(255,255,255,0.15)'
+                  : '#E8650A',
+                borderWidth: isSubscribed ? 1 : 0,
+                borderColor: 'rgba(255,255,255,0.2)',
+                opacity: toggleMut.isPending ? 0.6 : 1,
+              }}
+            >
+              {isSubscribed ? (
+                <BellOff size={13} color="#FFFFFF" />
+              ) : (
+                <Bell size={13} color="#FFFFFF" />
+              )}
+              <Text
+                className="font-heading-black text-white"
+                style={{ fontSize: 12 }}
+              >
+                {isSubscribed ? 'Suivi' : 'Suivre'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Grille 3 stats */}
+          <View className="mt-4 flex-row gap-2">
+            <StatTile value={subscribersCount} label="Joueurs" />
+            <StatTile value={tournamentsCount} label="Tournois" />
+            <StatTile value={courtsCount ?? '?'} label="Terrains" />
+          </View>
+        </LinearGradient>
+
+        <View className="px-4 pt-4">
+          {/* Badges owner + club_type + indoor */}
+          {(club.owner || club.club_type || club.indoor !== null) && (
+            <View className="mb-4 flex-row flex-wrap gap-1.5">
+              {club.owner ? (
+                <View className="flex-row items-center gap-1 rounded-full bg-brand-orange-light px-2.5 py-1">
+                  <Text className="font-heading text-[10px] text-brand-orange">
+                    ⭐ Patron inscrit
+                  </Text>
+                </View>
+              ) : null}
+              {club.club_type ? (
+                <View className="rounded-full bg-slate-100 px-2.5 py-1">
+                  <Text className="font-heading text-[10px] text-brand-navy">
+                    {club.club_type === 'associatif' ? '🤝 Associatif' : '🏢 Privé'}
+                  </Text>
+                </View>
+              ) : null}
+              {club.indoor === true ? (
+                <View className="rounded-full bg-slate-100 px-2.5 py-1">
+                  <Text className="font-heading text-[10px] text-brand-navy">🏠 Couvert</Text>
+                </View>
+              ) : club.indoor === false ? (
+                <View className="rounded-full bg-slate-100 px-2.5 py-1">
+                  <Text className="font-heading text-[10px] text-brand-navy">☀️ Extérieur</Text>
+                </View>
+              ) : null}
+              {isOwner ? (
+                <View className="rounded-full bg-green-50 px-2.5 py-1">
+                  <Text className="font-heading text-[10px] text-green-700">
+                    ✓ Tu es le patron
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+
+          {/* Description patron */}
+          {club.description ? (
+            <Card className="mb-4">
               <Text variant="body" className="text-[13px] leading-5">
                 {club.description}
               </Text>
             </Card>
-          </View>
-        ) : null}
+          ) : null}
 
-        {/* Abonnement */}
-        <View className="mx-5">
-          <Button
-            label={isSubscribed ? 'Désabonner' : "S'abonner aux alertes"}
-            variant={isSubscribed ? 'ghost' : 'primary'}
-            loading={toggleMut.isPending}
-            leftIcon={
-              isSubscribed ? (
-                <Heart size={18} color="#1A2A4A" fill="#E8650A" />
-              ) : (
-                <BellRing size={18} color="#FFFFFF" />
-              )
-            }
-            onPress={handleToggle}
-          />
-          <Text variant="caption" className="mt-2 px-1 text-[11px]">
-            {isSubscribed
-              ? 'Tu reçois les notifications des nouveaux tournois de ce club.'
-              : "Active les alertes pour être notifié des nouveaux tournois."}
-          </Text>
-        </View>
-
-        {/* Infos */}
-        <View className="mx-5 mt-5">
-          <Card>
-            {club.address ? (
-              <InfoRow icon={<MapPin size={16} color="#E8650A" />} label="Adresse" value={club.address} />
-            ) : null}
-            {club.courts_count ? (
-              <InfoRow
-                icon={<Trophy size={16} color="#E8650A" />}
-                label="Terrains"
-                value={`${club.courts_count} court${club.courts_count > 1 ? 's' : ''}`}
-              />
-            ) : null}
-            {club.phone ? (
-              <InfoRow
-                icon={<Phone size={16} color="#E8650A" />}
-                label="Téléphone"
-                value={club.phone}
-                onPress={() => Linking.openURL(`tel:${club.phone}`)}
-              />
-            ) : null}
-            {club.email ? (
-              <InfoRow
-                icon={<Mail size={16} color="#E8650A" />}
-                label="Email"
-                value={club.email}
-                onPress={() => Linking.openURL(`mailto:${club.email}`)}
-              />
-            ) : null}
-            {club.website ? (
-              <InfoRow
-                icon={<Globe size={16} color="#E8650A" />}
-                label="Site web"
-                value={club.website}
-                onPress={() => Linking.openURL(club.website as string)}
-              />
-            ) : null}
-          </Card>
-        </View>
-
-        {/* Tournois dans ce club */}
-        {tournaments.length > 0 ? (
-          <View className="mx-5 mt-5">
-            <Text
-              variant="caption"
-              className="mb-2 text-[11px] font-heading-black uppercase tracking-wider"
+          {/* Infos pratiques — adresse cliquable Google Maps + phone + website */}
+          {club.address || club.phone || club.website || club.email ? (
+            <View
+              className="mb-4 gap-1.5 rounded-2xl border border-brand-border bg-white px-4 py-3"
             >
-              Tournois dans ce club
+              {club.address ? (
+                <Pressable
+                  onPress={openMaps}
+                  className="flex-row items-center gap-1.5"
+                  hitSlop={4}
+                >
+                  <MapPin size={12} color="#E8650A" />
+                  <Text
+                    variant="caption"
+                    className="flex-1 text-[12px] text-brand-orange"
+                    numberOfLines={2}
+                  >
+                    {club.address}, {club.city}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {club.phone ? (
+                <Pressable
+                  onPress={() => Linking.openURL(`tel:${club.phone}`)}
+                  className="flex-row items-center gap-1.5"
+                  hitSlop={4}
+                >
+                  <Phone size={12} color="#E8650A" />
+                  <Text variant="caption" className="text-[12px] text-brand-orange">
+                    {club.phone}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {club.website ? (
+                <Pressable
+                  onPress={() => Linking.openURL(club.website as string)}
+                  className="flex-row items-center gap-1.5"
+                  hitSlop={4}
+                >
+                  <Globe size={12} color="#2563EB" />
+                  <Text
+                    variant="caption"
+                    className="flex-1 text-[12px]"
+                    style={{ color: '#2563EB' }}
+                    numberOfLines={1}
+                  >
+                    {club.website}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {club.email ? (
+                <Pressable
+                  onPress={() => Linking.openURL(`mailto:${club.email}`)}
+                  className="flex-row items-center gap-1.5"
+                  hitSlop={4}
+                >
+                  <Mail size={12} color="#E8650A" />
+                  <Text variant="caption" className="text-[12px] text-brand-orange">
+                    {club.email}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* Tournois à venir dans ce club */}
+          {openTournaments.length > 0 ? (
+            <View className="mb-4">
+              <Text
+                className="mb-2.5 font-heading-black text-brand-navy"
+                style={{ fontSize: 14 }}
+              >
+                Tournois dans ce club
+              </Text>
+              <View className="gap-2">
+                {openTournaments.map((t) => {
+                  const registered = t.teams_count ?? 0;
+                  const left = Math.max(0, (t.max_teams ?? 0) - registered);
+                  return (
+                    <Pressable
+                      key={t.uuid}
+                      onPress={() => router.push(`/tournois/${t.uuid}`)}
+                      className="flex-row items-center gap-3 rounded-2xl border border-brand-border bg-white px-3.5 py-3"
+                    >
+                      <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-orange-light">
+                        <Trophy size={16} color="#E8650A" />
+                      </View>
+                      <View className="flex-1">
+                        <Text
+                          variant="body-medium"
+                          className="text-[13px]"
+                          numberOfLines={1}
+                        >
+                          {t.name}
+                        </Text>
+                        <Text variant="caption" className="text-[11px]">
+                          {t.date}
+                          {t.level ? ` · ${t.level}` : ''}
+                          {' · '}
+                          <Text
+                            variant="caption"
+                            className="text-[11px]"
+                            style={{
+                              color: left > 0 ? '#16A34A' : '#EF4444',
+                            }}
+                          >
+                            {left > 0 ? `${left} places` : 'Complet'}
+                          </Text>
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {/* Feed posts du club (posts du patron si club revendiqué) */}
+          {club.owner ? (
+            <View className="mb-4">
+              <Text
+                className="mb-2.5 font-heading-black text-brand-navy"
+                style={{ fontSize: 14 }}
+              >
+                Actualités du club
+              </Text>
+              {ownerPostsQuery.isLoading ? (
+                <View className="items-center py-6">
+                  <ActivityIndicator color="#E8650A" />
+                </View>
+              ) : posts.length > 0 ? (
+                <View className="gap-3">
+                  {posts.slice(0, 5).map((post) => (
+                    <ClubPostCard key={post.uuid} post={post} clubName={club.name} />
+                  ))}
+                </View>
+              ) : (
+                <ClubPostsEmptyState
+                  isSubscribed={isSubscribed}
+                  onSubscribe={handleToggle}
+                  pending={toggleMut.isPending}
+                />
+              )}
+            </View>
+          ) : (
+            <View className="mb-4">
+              <Text
+                className="mb-2.5 font-heading-black text-brand-navy"
+                style={{ fontSize: 14 }}
+              >
+                Actualités du club
+              </Text>
+              <ClubPostsEmptyState
+                isSubscribed={isSubscribed}
+                onSubscribe={handleToggle}
+                pending={toggleMut.isPending}
+              />
+            </View>
+          )}
+
+          {/* Services du club — 3 cards navy statiques (À venir) */}
+          <View className="mb-4">
+            <Text
+              className="mb-2.5 font-heading-black text-brand-navy"
+              style={{ fontSize: 14 }}
+            >
+              Services du club
             </Text>
             <View className="gap-2.5">
-              {tournaments.map((t) => (
-                <Pressable
-                  key={t.uuid}
-                  onPress={() => router.push(`/tournois/${t.uuid}`)}
-                  className="flex-row items-center gap-3 rounded-3xl border border-brand-border bg-white px-4 py-3"
-                >
-                  <View className="h-10 w-10 items-center justify-center rounded-2xl bg-brand-orange-light">
-                    <Trophy size={18} color="#E8650A" />
-                  </View>
-                  <View className="flex-1">
-                    <Text variant="body-medium" className="text-[13px]" numberOfLines={1}>
-                      {t.name}
-                    </Text>
-                    <Text variant="caption" className="text-[11px]">
-                      {t.date}
-                      {t.level ? ` · ${t.level}` : ''}
-                      {t.status === 'open' ? ' · Ouvert' : ''}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
+              <View className="flex-row gap-2.5">
+                <ServiceCard
+                  icon={<ShoppingBag size={24} color="#E8650A" />}
+                  title="Boutique"
+                  subtitle="Vends tes produits en ligne"
+                  badgeColor="#E8650A"
+                  badgeTextColor="#FFFFFF"
+                />
+                <ServiceCard
+                  icon={<CalendarClock size={24} color="#4ADE80" />}
+                  title="Réservation"
+                  subtitle="Terrain en quelques secondes"
+                  badgeColor="#4ADE80"
+                  badgeTextColor="#15803D"
+                />
+              </View>
+              <ServiceCard
+                fullWidth
+                icon={<Text style={{ fontSize: 24 }}>🍽️</Text>}
+                title="Restauration"
+                subtitle="Menu · Réservation table · À emporter"
+                badgeColor="#FBBF24"
+                badgeTextColor="#92400E"
+              />
             </View>
           </View>
-        ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function InfoRow({
-  icon,
-  label,
+function StatTile({
   value,
-  onPress,
+  label,
+}: {
+  value: number | string;
+  label: string;
+}) {
+  return (
+    <View
+      className="flex-1 items-center rounded-[10px] py-2"
+      style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+    >
+      <Text
+        className="font-heading-black text-white"
+        style={{ fontSize: 16, lineHeight: 20 }}
+      >
+        {value}
+      </Text>
+      <Text
+        className="font-body-medium"
+        style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function ClubPostsEmptyState({
+  isSubscribed,
+  onSubscribe,
+  pending,
+}: {
+  isSubscribed: boolean;
+  onSubscribe: () => void;
+  pending: boolean;
+}) {
+  return (
+    <View className="items-center rounded-2xl border border-brand-border bg-white px-6 py-8">
+      <Building2 size={32} color="#CBD5E1" />
+      <Text variant="body-medium" className="mt-2 text-[14px]">
+        Aucun post pour l&apos;instant
+      </Text>
+      {!isSubscribed ? (
+        <>
+          <Text variant="caption" className="mt-1 text-center text-[12px]">
+            Suis ce club pour être notifié de ses actualités.
+          </Text>
+          <Pressable
+            onPress={onSubscribe}
+            disabled={pending}
+            className="mt-3 flex-row items-center gap-1.5 rounded-full bg-brand-orange px-4 py-2"
+            style={{ opacity: pending ? 0.6 : 1 }}
+          >
+            <Bell size={13} color="#FFFFFF" />
+            <Text
+              className="font-heading-black text-white"
+              style={{ fontSize: 12 }}
+            >
+              Suivre ce club
+            </Text>
+          </Pressable>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+function ClubPostCard({ post, clubName }: { post: FeedPost; clubName: string }) {
+  const authorName = post.author?.name ?? clubName;
+  return (
+    <View className="overflow-hidden rounded-2xl border border-brand-border bg-white">
+      {/* Header */}
+      <View className="flex-row items-center gap-2.5 px-3.5 py-2.5">
+        <View className="h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-brand-navy">
+          {post.author?.picture_url ? (
+            <Image
+              source={post.author.picture_url}
+              style={{ width: '100%', height: '100%' }}
+              contentFit="cover"
+            />
+          ) : (
+            <Building2 size={16} color="#FFFFFF" />
+          )}
+        </View>
+        <View className="flex-1">
+          <Text variant="body-medium" className="text-[13px]" numberOfLines={1}>
+            {authorName}
+          </Text>
+          <Text
+            className="font-heading-black text-brand-orange"
+            style={{ fontSize: 10 }}
+          >
+            {subtypeLabel(post)}
+          </Text>
+        </View>
+        <Text variant="caption" className="text-[10px]">
+          {timeAgo(post.created_at)}
+        </Text>
+      </View>
+
+      {/* Image ratio piloté par post_aspect */}
+      {post.image_url ? (
+        <Image
+          source={post.image_url}
+          style={{ width: '100%', aspectRatio: aspectRatioFor(post.post_aspect) }}
+          contentFit="cover"
+        />
+      ) : null}
+
+      {/* Texte */}
+      {post.text ? (
+        <View className="px-3.5 pb-2 pt-3">
+          <Text variant="body" className="text-[13px] leading-5">
+            {post.text}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Actions (read-only pour l'instant — les écrans Feed gèrent l'interaction) */}
+      <View className="flex-row items-center gap-5 border-t border-brand-border/50 px-3.5 py-2.5">
+        <View className="flex-row items-center gap-1.5">
+          <Heart
+            size={16}
+            color={post.liked_by_viewer ? '#E8650A' : '#64748B'}
+            fill={post.liked_by_viewer ? '#E8650A' : 'transparent'}
+          />
+          <Text variant="caption" className="text-[12px]">
+            {post.likes_count}
+          </Text>
+        </View>
+        <View className="flex-row items-center gap-1.5">
+          <MessageCircle size={16} color="#64748B" />
+          <Text variant="caption" className="text-[12px]">
+            {post.comments_count}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function ServiceCard({
+  icon,
+  title,
+  subtitle,
+  badgeColor,
+  badgeTextColor,
+  fullWidth = false,
 }: {
   icon: React.ReactNode;
-  label: string;
-  value: string;
-  onPress?: () => void;
+  title: string;
+  subtitle: string;
+  badgeColor: string;
+  badgeTextColor: string;
+  fullWidth?: boolean;
 }) {
-  const Wrapper = onPress ? Pressable : View;
   return (
-    <Wrapper
-      onPress={onPress}
-      className="flex-row items-center gap-3 border-b border-brand-border/60 py-2.5 last:border-b-0"
+    <View
+      className={`overflow-hidden rounded-[18px] px-3.5 py-4 ${fullWidth ? '' : 'flex-1'}`}
+      style={{ backgroundColor: '#1A2A4A' }}
     >
-      <View className="h-8 w-8 items-center justify-center rounded-xl bg-brand-orange-light">
-        {icon}
-      </View>
-      <View className="flex-1">
-        <Text variant="caption" className="text-[10px] font-heading-black uppercase tracking-wider">
-          {label}
-        </Text>
+      <View className="mb-2.5">{icon}</View>
+      <Text
+        className="font-heading-black text-white"
+        style={{ fontSize: 14, lineHeight: 18 }}
+      >
+        {title}
+      </Text>
+      <Text
+        className="mt-0.5"
+        style={{ fontSize: 10, lineHeight: 14, color: 'rgba(255,255,255,0.55)' }}
+        numberOfLines={2}
+      >
+        {subtitle}
+      </Text>
+      <View
+        className="mt-2 self-start rounded-full px-2 py-0.5"
+        style={{ backgroundColor: badgeColor }}
+      >
         <Text
-          variant="body"
-          className={`mt-0.5 text-[13px] ${onPress ? 'text-brand-orange' : ''}`}
-          numberOfLines={2}
+          className="font-heading-black"
+          style={{ fontSize: 9, color: badgeTextColor }}
         >
-          {value}
+          GRATUIT · 0% commission
         </Text>
       </View>
-    </Wrapper>
+      <View className="mt-2 flex-row items-center gap-1">
+        <Text
+          style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}
+        >
+          Bientôt
+        </Text>
+        <ChevronRight size={10} color="rgba(255,255,255,0.4)" />
+      </View>
+    </View>
   );
+}
+
+function subtypeLabel(post: FeedPost): string {
+  if (post.post_type === 'tournament_club') return '🏆 Tournoi';
+  if (post.post_type === 'referee_announcement') return '📢 Annonce';
+  if (post.post_type === 'match_result') return '🎾 Match';
+  return 'PlaceToPadel';
+}
+
+function timeAgo(iso: string): string {
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (d < 60) return "À l'instant";
+  if (d < 3600) return `${Math.floor(d / 60)} min`;
+  if (d < 86400) return `${Math.floor(d / 3600)} h`;
+  return `${Math.floor(d / 86400)} j`;
 }
