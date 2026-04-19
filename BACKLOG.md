@@ -1,194 +1,183 @@
 # BACKLOG — Place2Padel
 
-Items différés à traiter après les phases en cours. Format : priorité, contexte, proposition, dépendances.
+Items différés à traiter. Les entrées résolues restent archivées en bas pour
+la traçabilité.
 
 ---
 
-## 🔴 Lot A — Feed complet (P0)
-
-### A.1 — Création de post (entièrement manquant côté mobile)
+## 🟡 En attente — Game Proposal UI mobile (Phase 6.2 G8)
 
 **Contexte**
-Le bouton **"+ Nouveau post"** du Cockpit Player ([cockpit.tsx:273-275](frontend/mobile/app/(tabs)/cockpit.tsx#L273-L275)) fait `router.push('/profil/{uuid}')` — placeholder. La tab Posts du profil affiche les posts existants et un empty state qui redirige vers `/actualites`, qui n'a **pas** de composer non plus. Cercle vicieux : aucun point d'entrée de création de post dans toute l'app.
-
-**Endpoint backend disponible**
-`POST /posts` ([CreatePostController](backend/app/Modules/Feed/Controllers/CreatePostController.php)) accepte `{ text?, image?, tournament_uuid? }` (multipart).
-
-**Proposition**
-1. Hook `useCreatePost` dans [src/features/feed/useFeed.ts](frontend/mobile/src/features/feed/useFeed.ts) — mutation FormData + invalidate `['feed']` + `['profile-posts']`
-2. Composant `CreatePostSheet` dans `src/components/feed/CreatePostSheet.tsx` — bottom-sheet avec :
-   - Textarea multiline (max 2000 chars)
-   - Bouton "Ajouter une photo" → `expo-image-picker` (permissions déjà déclarées app.json)
-   - Preview image 4/5 + bouton croix
-   - Sélecteur optionnel tournoi (reuse pattern `ProposeTournamentSheet`)
-   - Bouton "Publier" orange désactivé si ni text ni image
-3. FAB orange bottom-right sur [actualites.tsx](frontend/mobile/app/(tabs)/actualites.tsx) → ouvre `CreatePostSheet`
-4. Wire bouton "+ Nouveau post" Cockpit : `router.push('/(tabs)/actualites?compose=1')` avec query param auto-open, OU remonter `CreatePostSheet` state via un store léger
-5. Dans `ProfilePostsTab` de [profil/[id].tsx](frontend/mobile/app/profil/[id].tsx) : si `isSelf`, CTA "Publier un post" en haut qui ouvre la même sheet
-
-**Référence Emergent**
-[ProfilePage.js:322-348](../placeToPadel/frontend/src/pages/ProfilePage.js#L322) — composer Textarea + file input image + bouton Publier, conditionné `isOwnProfile`.
-
-**Priorité** 🔴 P0 — feature core MVP bloquée.
-
-### A.2 — Fix 5 invalidations feed manquantes
-
-**Contexte**
-Après actions qui créent un post système backend (via listeners `CreateSystemPostOnTournamentCreated`, `CreateSystemPostOnTournamentCompleted`, etc.), le feed mobile ne rafraîchit pas → l'user voit des données périmées.
-
-**Bugs identifiés**
-
-| # | Hook | Fichier:ligne | Fix |
-|---|---|---|---|
-| 1 | `useUploadProfilePhoto` | [useProfile.ts:104](frontend/mobile/src/features/profile/useProfile.ts#L104) | `qc.invalidateQueries({ queryKey: ['feed'] })` — sinon anciennes photos sur les posts |
-| 2 | `useCreateTournament` | [useTournament.ts:62](frontend/mobile/src/features/tournaments/useTournament.ts#L62) | Ajouter `['feed']` — post système `tournament_created` n'apparaît pas |
-| 3 | `useRegisterTeam` | [useTournament.ts:90](frontend/mobile/src/features/tournaments/useTournament.ts#L90) | Ajouter `['feed']` |
-| 4 | `useCreateFriendlyMatch` | [useFriendlyMatches.ts:55](frontend/mobile/src/features/friendly-matches/useFriendlyMatches.ts#L55) | Ajouter `['feed']` |
-| 5 | `useValidateFriendlyMatch` | [useFriendlyMatches.ts:129](frontend/mobile/src/features/friendly-matches/useFriendlyMatches.ts#L129) | Ajouter `['feed']` — résultat final post système |
-
-**Proposition**
-Helper `invalidateFeedKeys(qc)` dans `src/lib/invalidations.ts` centralisant les invalidations `['feed']` + `['profile-posts']`. Chaque mutation appelle ce helper en `onSettled`.
-
-**Priorité** 🔴 P0 — UX dégradée sur actions fréquentes.
-
-**Statut** Lot A à livrer ensemble (A.1 + A.2) dans une même branche — test E2E après.
-
----
-
-## 🟠 Lot B — Audit visuel pages non encore comparées (P1)
-
-### B.1 — actualites.tsx
-
-**Contexte**
-Page feed jamais comparée à Emergent. État actuel : 100 lignes basiques avec `FeedFilterPills` + `FlatList` de `PostCard`. Aucun compositeur (fixé par Lot A).
-
-**Proposition**
-Comparaison structurée vs feed Emergent (section par section du composant web équivalent) : filtres sticky, ordre sections, empty state, pull-to-refresh, infinite scroll. Lister écarts P0/P1/P2.
-
-**Priorité** 🟠 P1.
-
-### B.2 — home.tsx
-
-**Contexte**
-Page restaurée depuis commit orphelin `28f25f1` (Phase 6.1.5 récupération) mais jamais auditée section par section post-restauration. Possibles dérives vs HomePage.js Emergent d5ac086.
-
-**Proposition**
-Audit grille 9 cases + hero navy + popup "bientôt" (déjà wiré waitlist) + footer marketing. Vérifier parité visuelle avec la version Emergent actuelle.
-
-**Priorité** 🟠 P1.
-
----
-
-## 🟡 Lot C — Actions owner + compositeur club (P2)
-
-### C.1 — DELETE /posts/{post} + DELETE /comments/{comment}
-
-**Contexte**
-Endpoints backend livrés (Phase 5.1) mais aucune UI mobile pour supprimer ses propres posts ou commentaires.
-
-**Proposition**
-- `useDeletePost(postUuid)` + `useDeleteComment(commentUuid)` dans useFeed.ts
-- Long-press sur `PostCard` (ou `ProfilePostCard`) → ActionSheet "Supprimer" si `post.author?.uuid === user?.uuid`
-- Même pattern pour commentaires dans `CommentsSheet`
-- Confirmation `Alert.alert` avant delete
-
-**Priorité** 🟡 P2.
-
-### C.2 — Compositeur d'annonces club (patron)
-
-**Contexte**
-La page `clubs/[id].tsx` affiche bien les infos + tournois du club, mais aucun point d'entrée pour le **patron** (`isOwner`) de poster une annonce sur la page de son club. Emergent `ClubDetailPage.js` a un composer dédié.
-
-**Proposition**
-Si `isOwner`, afficher une card "Publier une annonce" qui ouvre une sheet similaire à `CreatePostSheet` mais avec `club_uuid` pré-rempli (champ backend à ajouter sur `posts` si absent — à vérifier schéma). Affichage des posts du club dans un onglet dédié de la page club.
-
-**Priorité** 🟡 P2 — dépend décision produit sur la feature club_owner mobile (backend déjà prêt depuis sync Emergent d5ac086).
-
----
-
-## 🟡 Game Proposal — UI mobile manquante (Phase 6.2 G8)
-
-**Contexte**
-Les 5 endpoints backend Game Proposal sont prêts (`GET /game-proposals/my`, `POST`, `PUT respond`, `DELETE`, `POST start`) depuis la Phase 6.2 mais aucun hook/écran mobile ne les consomme. Dans Emergent, les game proposals apparaissent comme option dans le chat (planification différée d'une partie avec date/heure/club).
+Les 5 endpoints backend Game Proposal sont prêts (`GET /game-proposals/my`,
+`POST`, `PUT respond`, `DELETE`, `POST start`) depuis la Phase 6.2 mais
+aucun hook/écran mobile ne les consomme. Dans Emergent, les game proposals
+apparaissent comme option dans le chat (planification différée d'une partie
+avec date/heure/club).
 
 **Proposition**
 - Hooks `useGameProposals` + mutations dans `src/features/game-proposals/useGameProposals.ts`
-- Sheet `ProposeGameSheet` (depuis le chat, bouton à côté de "Match amical") avec champs date + heure + club + message
-- Écran `/game-proposals/index.tsx` pour lister mes propositions (Reçues/Envoyées) avec actions Accept/Refuse/Cancel/Start
+- Sheet `ProposeGameSheet` (depuis le chat, bouton à côté de "Match amical")
+  avec champs date + heure + club + message
+- Écran `/game-proposals/index.tsx` pour lister mes propositions (Reçues/Envoyées)
+  avec actions Accept/Refuse/Cancel/Start
 
 **Priorité** 🟡 P1.
 
 ---
 
-## 🟡 Stripe — Page de retour post-paiement
+## 🟡 En attente — Stripe page de retour post-paiement
 
 **Contexte**
-Après un paiement Stripe réussi, l'URL de success (`{FRONTEND_URL}/tournois/{uuid}?session_id=xxx`) pointe actuellement vers le frontend web. Aucune page web n'existe encore (Phase 7 Next.js non démarrée). Sur mobile, l'utilisateur paie via navigateur externe puis doit revenir manuellement dans l'app pour voir l'overlay de polling se finaliser — expérience sous-optimale.
+Après un paiement Stripe réussi, l'URL de success
+(`{FRONTEND_URL}/tournois/{uuid}?session_id=xxx`) pointe actuellement vers le
+frontend web. Aucune page web n'existe encore (Phase 7 Next.js non démarrée).
+Sur mobile, l'utilisateur paie via navigateur externe puis doit revenir
+manuellement dans l'app pour voir l'overlay de polling se finaliser.
 
-**Proposition**
-Créer une page de retour simple, deux options :
+**Proposition** (deux options)
 
-1. **Endpoint Laravel `/payment/success` (court terme)** — page HTML statique servie par le backend :
-   - Affiche "Paiement confirmé ✅ — Retournez sur l'app PlaceToPadel"
+1. **Endpoint Laravel `/payment/success`** (court terme) — page HTML statique
+   servie par le backend :
+   - "Paiement confirmé ✅ — Retournez sur l'app PlaceToPadel"
    - Bouton CTA `<a href="placetopadel://tournois/{uuid}?session_id=xxx">Ouvrir l'app</a>`
-   - Fallback texte pour ouverture manuelle si le deep link ne fonctionne pas
+   - Fallback texte pour ouverture manuelle si deep link échoue
    - Style minimal aligné charte (orange `#E8650A`, navy `#1A2A4A`)
 
-2. **Page Next.js (Phase 7)** — intégration propre dans le site web marketing :
-   - Route `/tournois/{uuid}` avec détection `?session_id=xxx` → déclenche un polling côté client ou redirect deep link
-   - Gestion des 3 cas : paid / pending / cancelled
-   - Meta OpenGraph pour partage social ("J'ai rejoint le tournoi {name} !")
+2. **Page Next.js** (Phase 7) — intégration dans le site web marketing :
+   - Route `/tournois/{uuid}?session_id=xxx` avec polling + redirect deep link
+   - Gestion 3 cas : paid / pending / cancelled
+   - Meta OpenGraph pour partage social
 
-**Prérequis deep link**
-- Configurer le scheme `placetopadel://` dans Expo (cf. issue "Rename scheme" ci-dessous)
-- Tester les universal links iOS + App Links Android
-
-**Dépendances**
-- Décision : court terme endpoint Laravel simple OU attendre la Phase 7 Next.js
-- Configuration du domaine de prod (pointer `success_url` vers la vraie URL)
+**Prérequis deep link** : rename scheme `placetopadel://` (item ci-dessous).
 
 **Priorité** 🟡 P1 — bloquant avant mise en prod Stripe.
 
 ---
 
-## 🟡 Rename scheme `place2padel` → `placetopadel://`
+## 🟡 En attente — Rename scheme `place2padel` → `placetopadel://`
 
 **Contexte**
-Le projet est rebrandé "PlaceToPadel" dans l'UI (majuscule T centrée) mais techniquement le scheme deep link + bundle identifiers restent `place2padel` / `com.place2padel.app`. Les emails (reset password, notifications) et success URLs Stripe utilisent déjà `placetopadel.com` domain, donc incohérence.
+Le projet est rebrandé "PlaceToPadel" dans l'UI mais les bundle identifiers +
+scheme deep link restent `place2padel` / `com.place2padel.app`. Les emails
+(reset password) et success URLs Stripe utilisent déjà `placetopadel.com`
+comme domaine — incohérence.
 
-**Fichiers à mettre à jour**
+**Fichiers**
 
-| Fichier | Ligne | Avant | Après |
-|---|---|---|---|
-| [app.json](frontend/mobile/app.json) | scheme | `"place2padel"` | `"placetopadel"` |
-| [app.json](frontend/mobile/app.json) | ios.bundleIdentifier | `"com.place2padel.app"` | `"com.placetopadel.app"` |
-| [app.json](frontend/mobile/app.json) | android.package | `"com.place2padel.app"` | `"com.placetopadel.app"` |
-| package.json | name | `"place2padel-mobile"` | `"placetopadel-mobile"` |
+| Fichier | Avant | Après |
+|---|---|---|
+| [app.json](frontend/mobile/app.json) scheme | `"place2padel"` | `"placetopadel"` |
+| [app.json](frontend/mobile/app.json) ios.bundleIdentifier | `"com.place2padel.app"` | `"com.placetopadel.app"` |
+| [app.json](frontend/mobile/app.json) android.package | `"com.place2padel.app"` | `"com.placetopadel.app"` |
+| package.json name | `"place2padel-mobile"` | `"placetopadel-mobile"` |
 
 **Impact**
-- Rebuild dev client requis côté Android et iOS (nouveau bundle ID)
+- Rebuild dev client requis Android + iOS (nouveau bundle ID)
 - Deep links existants invalidés (aucun en prod, safe)
-- Tests des liens email reset password + success Stripe à refaire
+- Tests liens email reset password + success Stripe à refaire
 
-**Priorité** 🟡 P1 — préalable à la publication stores (Phase 8) + au flow Stripe en prod.
-
----
-
-## ✅ [Résolu] CTA "S'inscrire" masqué pour creator + referee
-
-**Contexte** — Bug identifié au test émulateur : le bouton "S'inscrire" s'affichait pour l'organisateur d'un tournoi (qui ne s'inscrit pas à son propre tournoi) et pour les utilisateurs avec `role=referee` (ne jouent pas, organisent uniquement).
-
-**Fix** — Dans [app/(tabs)/tournois/[id].tsx](frontend/mobile/app/(tabs)/tournois/[id].tsx) : le bloc `<TournamentCta>` est wrappé par une condition :
-```tsx
-{tournament.creator?.uuid !== user?.uuid && user?.role !== 'referee' ? (
-  <TournamentCta ... />
-) : null}
-```
-
-**Impact** — Bouton "Lancer le tournoi" reste visible pour le creator (logique séparée, conditions distinctes). Bouton "S'inscrire / Se désinscrire" uniquement pour les joueurs non-créateurs.
-
-**Statut** ✅ Résolu — commit à venir.
+**Priorité** 🟡 P1 — préalable à publication stores (Phase 8) + Stripe prod.
 
 ---
 
-*Dernière mise à jour : 19 avril 2026 (ajout Lot A/B/C + Game Proposal + rename scheme après audit session complet)*
+## 🟡 En attente — Credentials externes
+
+### Google OAuth mobile
+- `GOOGLE_CLIENT_ID` Android + iOS requis
+- UI masquée actuellement côté mobile, backend Socialite intact
+- À activer dès obtention des credentials (pas de code supplémentaire nécessaire)
+
+### Push notifications Expo
+- `EAS projectId` + FCM key (Android) + APNs (iOS)
+- Backend a les endpoints stubs `/push/vapid-key` / `/push/subscribe` / `/push/unsubscribe`
+  depuis la Phase 3, prêts à être connectés
+
+**Priorité** 🟡 P2 — non critique MVP, activable progressivement.
+
+---
+
+## 🟡 En attente — Lot C Actions owner (P2)
+
+### C.1 — DELETE /posts/{post} + DELETE /comments/{comment}
+Endpoints backend livrés (Phase 5.1) mais aucune UI mobile pour supprimer ses
+propres posts ou commentaires. Long-press → ActionSheet si author = viewer.
+
+### C.2 — Compositeur d'annonces club (patron)
+`clubs/[id].tsx` affiche le feed posts du patron (refonte 20/4 ✅) mais ne
+permet pas au patron de poster. Ajouter card "Publier une annonce" avec sheet
+préremplie `club_uuid` si `isOwner`.
+
+**Priorité** 🟡 P2.
+
+---
+
+# ✅ Résolu — session 20 avril 2026
+
+## ✅ Lot A — Feed complet (P0) — merge `261847b`
+- Hook `useCreatePost` + `CreatePostSheet` bottom-sheet (textarea + image
+  picker + sélecteur tournoi optionnel + bouton Publier)
+- FAB orange dans `/actualites` + composer card dans tab Posts du profil
+- Wire bouton "+ Nouveau post" du Cockpit Player
+- Helper `invalidateFeedKeys(qc)` centralisé, appelé dans les 5 mutations
+  (upload photo, create tournament, register team, create/validate friendly match)
+- Backend : `POST /posts` accepte multipart `image` en plus de `image_url`
+
+## ✅ Feed system posts — merge `261847b`
+- Migration `post_type` VARCHAR + `metadata` JSON + `post_aspect` ENUM
+- 3 listeners : `CreateWelcomePostOnUserRegistered`,
+  `CreateSystemPostOnFriendlyMatchValidated`,
+  `CreateTournamentClubPostOnTournamentCreated`
+- `referee_announcement` via `POST /posts` (whitelist referee/admin)
+- `ProfileService::updatePhoto` backfill image_url du welcome post
+- Mobile PostCard + ProfilePostCard : aspectRatio piloté par post_aspect
+
+## ✅ Match hero non-auth refonte — merge `32c5b7d`
+Port Emergent d5ac086 FriendlyMatchPage.js : hero centré Swords 72×72 +
+CTA "Commencer la partie" + disclaimer + couleurs 4 étapes (orange/vert/bleu/violet)
++ bloc CTA final "Prêt à jouer ?" avec lien "Déjà inscrit ? Se connecter".
+
+## ✅ Club detail refonte — merge `64ae19e`
+Port Emergent ClubDetailPage.js : header navy compact avec toggle Suivre/Suivi
++ grille 3 stats (Joueurs/Tournois/Terrains) + adresse cliquable Google Maps
++ feed posts du patron via `useProfilePosts(owner.uuid)` + 3 cards services
+statiques (Boutique/Réservation/Restauration).
+
+## ✅ Tournament detail complete — merge `3782f8f`
+12 features port Emergent TournamentDetailPage.js :
+- P0 : Partner picker à l'inscription, prix visible Info card, bouton Partager
+  (Share native), onglet Salon tournoi (polling 5s)
+- P1 : Delete tournoi owner, actions directes MatchRow (Score live/Forfait),
+  onglet Tableau (BracketView SVG RN)
+- P2 : Subscribe club depuis Info card, waitlist amber, TS1-TS4 badges + team_points,
+  groupement matchs par pool/bracket, format+phase badges dérivés
+
+## ✅ Match live improvements — merge `bfaca04`
+- Migration `matches.started_at` + timer mm:ss + polling 5s conditionnel
+- LivePulseBadge Reanimated (opacity 1↔0.4, 800ms)
+- CompletedBlock match amical : card vert/rouge contextuelle + Trophy doré
+  + ELO delta inline (`Niveau X.X → Y.Y + delta`) + upload photo result +
+  footer Retour/Mes stats
+- `canScore` étendu à owner + admin (backend + mobile)
+- Noms des joueurs complets sous team_name
+- "Valider" → "Partie terminée" + bouton "Démarrer" vert `#16A34A`
+
+## ✅ Throttle checkout + rate-limiter leak — commit `ce72a6b`
+- `POST /payments/checkout/create` : `throttle:10,1` → `throttle:60,1`
+- Fix rate-limiter state leak entre tests PHPUnit :
+  - `tests/bootstrap.php` custom force env vars avant Laravel boot
+  - `.env.testing` (CACHE=array, QUEUE=sync, MAIL=array)
+  - `TestCase::setUp` appelle `Cache::flush()` + `RateLimiter::clear('')`
+- Résultat : `php artisan test` passe de **73 failed → 0 failed** (+73 verts)
+
+## ✅ Safe area bulk fix + chat CTAs + profil Wins/Losses — merge `77a2e72`
+- 14 occurrences `edges={['top']}` → `edges={[]}` sur tous les écrans
+- 2 pills dans header conversation : "Proposer un tournoi" + "Match amical"
+- Stats profil Niveau/Position → Victoires (vert) / Défaites (rouge)
+
+## ✅ [Résolu session 19/4] CTA S'inscrire masqué pour creator + referee
+Bouton "S'inscrire" masqué pour l'organisateur et pour role=referee (fix
+`7e901c3`). Le bouton "Lancer le tournoi" reste visible pour le creator.
+
+---
+
+*Dernière mise à jour : 20 avril 2026 — session comparaison Emergent quasi-complète + tests 0 failed*

@@ -637,7 +637,7 @@ php artisan make:event TournamentCreated
 
 ---
 
-*Dernière mise à jour : 16 avril 2026 fin de session (Phase 6.2 clôturée + tous les gaps audit fermés + MVP mobile complet)*
+*Dernière mise à jour : 20 avril 2026 fin de session (comparaison Emergent d5ac086 quasi-complète + 417 tests backend verts 0 failed)*
 *Vision & validation : Fanomezantsoa | Implémentation : Claude Code*
 
 1. **Sur-architecture** : pas de microservices d'emblée — Laravel monolithe modulaire d'abord
@@ -835,23 +835,28 @@ Modèle : **paiement par tournoi** (l'organisateur choisit à la création entre
 - [ ] Mobile : détail tournoi → WebView ou in-app browser pour checkout Stripe, polling status au retour
 - [ ] Prix parsé depuis champ texte libre (helper `parsePrice` : `"15€"` → `15.0`)
 
-### Récap global backend (post-Phase 6.2 + fixes grand test)
-13 modules Laravel : `Admin`, `Auth`, `Club`, `Feed`, `FriendlyMatch`, `GameProposal`, `Match`, `Matchmaking`, `Notification`, `Payment`, `Social`, `Tournament`, `User`.
+### Récap global backend (fin session 20 avril — 0 failed)
+13 modules Laravel : `Admin`, `Auth`, `Club`, `Feed`, `FriendlyMatch`, `GameProposal`, `Match`, `Matchmaking`, `Notification`, `Payment`, `Social`, `Tournament`, `User`, `Waitlist`.
 
 | Module | Endpoints | Tests |
 |--------|-----------|-------|
-| Auth | 8 | 36 |
-| User/Profile | 6 | 45 *(+ schéma multi-clubs + availabilities period)* |
-| Club | 5 | 20 |
-| Tournament | 11 | 44 *(+ GET /tournaments/mine + 9 tests MyTournamentsTest)* |
-| Match Engine | 7 | 44 |
+| Auth *(+ forgot/reset password)* | 10 | 46 |
+| User/Profile *(+ multi-clubs + availabilities period)* | 6 | 45 |
+| Club *(+ /clubs/claim + subscribers_count)* | 6 | 30 |
+| Tournament *(+ /tournaments/mine + delete policy)* | 11 | 44 |
+| Match Engine *(+ started_at capture)* | 7 | 44 |
 | Notifications | 6 | 17 |
-| Matchmaking | 12 | 30 *(+ PUT /conversations/{uuid}/read + 3 tests mark-read)* |
-| Feed social | 9 | 24 |
-| FriendlyMatch + ELO | 13 | 30 |
+| Matchmaking *(+ /matching/candidates\|swipe\|matches)* | 15 | 56 |
+| Feed social *(+ post_type/metadata/post_aspect + 3 listeners)* | 9 | 36 |
+| FriendlyMatch + ELO *(+ /result-photo + FriendlyMatchCompleted event)* | 13 | 30 |
 | GameProposal | 5 | 19 |
-| Payment (Stripe) | 3 | 14 |
-| **TOTAL** | **85** | **329** *(1165 assertions)* |
+| Payment (Stripe, throttle 60/min) | 3 | 14 |
+| Waitlist | 1 | 7 |
+| **TOTAL** | **92** | **417** *(1398 assertions, 0 failed)* |
+
+> **Fix tests** (session 20/4) : `tests/bootstrap.php` pré-positionne les env vars AVANT Laravel boot, `.env.testing` force CACHE=array/QUEUE=sync/MAIL=array, `TestCase::setUp` appelle `Cache::flush()` + `RateLimiter::clear('')` pour éliminer le leak rate-limiter inter-tests.
+>
+> ⚠️ Si des tests échouent avec valeurs `.env` en testing, lancer `php artisan config:clear` (cache config persistante sur le disque local, exclue git).
 
 ### Phase 6 — App mobile React Native + Expo
 Branche active : **`main`** (toutes les phases 6.1 → 6.2 mergées au 2026-04-16)
@@ -953,6 +958,49 @@ L'audit du 16 avril avait identifié 4 bloquants 🔴 + 5 importants 🟡. Tous 
 - **HomePage marketing orpheline récupérée** (`28f25f1`) — le fichier avait été créé en `2bfae93` sur `feature/mobile-phase-6-2` mais jamais mergé. Cherry-pick + `app/index.tsx` redirige non-auth → `/(tabs)/home` au lieu de `/login`
 - **AppHeader complet port Emergent 39b6544** (`d362536`) — DrawerMenu 280px (Reanimated) + UniversalSearchOverlay (3 requêtes parallèles /tournaments /clubs /users, debounce 300ms) + Bell icône → /notifications + layout 3-zone stable (fix `bf8b326`)
 - **PUT /conversations/{conversation}/read** backend (`7d8b332`) — mark-read conversation atomique, fix badge Messages qui restait après ouverture
+
+#### Phase 6.3 — Session 19-20 avril : sync Emergent d5ac086 + comparaison quasi-complète
+
+**Backend** :
+- **Sync Emergent d5ac086** (`c077ada`) — `POST /auth/forgot-password` + `POST /auth/reset-password` (Laravel Password Broker + Resend), `POST /waitlist` auth-opt, role `club_owner` + colonnes `clubs.owner_id/club_type/description/picture_url/indoor/claimed_at`, `POST /clubs/claim`, register étendu (position + padel_level + bio + clubs[] + availabilities tuples)
+- **Matching amical global** Phase 4.2 (`cf75413`) — tables `swipes` + `player_matches`, `MatchmakingService::globalCompatibility` (port Emergent exact pos/level/dispos/géo), `GET /matching/candidates` + `POST /matching/swipe` + `GET /matching/matches`, event `MatchCreated` + email Resend whitelisté
+- **Fix throttle register** (`2817932`) — `/profile/photo` 10→60/min (trop strict pour grand test)
+- **Fix throttle checkout** (`ce72a6b`) — `/payments/checkout/create` 10→60/min
+- **Feed system posts** (`261847b`) — migration `post_type` + `metadata` JSON + `post_aspect` ENUM, listeners `CreateWelcomePostOnUserRegistered` / `CreateSystemPostOnFriendlyMatchValidated` / `CreateTournamentClubPostOnTournamentCreated`, event `FriendlyMatchCompleted` hors transaction, `referee_announcement` via POST /posts (whitelist referee/admin), backfill welcome post photo dans `ProfileService::updatePhoto`
+- **Tournament detail complete** (`3782f8f`) — DELETE policy owner + open/full only, `ShowTournamentController` expose `waitlist` + `teams`, `ShowClubController` expose `subscribers_count`, `ListTournamentPostsController` (salon)
+- **Match live + owner canScore** (`bfaca04`) — migration `matches.started_at`, `UpdateMatchScoreController` autorise owner+admin (+3 tests), `UploadResultPhotoController` pour match amical, `UserEloResource` expose `history` avec delta elo_before/elo_after par match
+- **Fix tests** (`ce72a6b`) — `tests/bootstrap.php` force env vars, `.env.testing` créé, `TestCase::setUp` flush cache → **73 failed → 0 failed** (+73 verts)
+
+**Mobile — pages auditées vs Emergent d5ac086** :
+
+| Écran | Status | Highlights |
+|---|---|---|
+| HomePage | ✅ | grille 9 cases + popups waitlist |
+| Register/Login | ✅ | 3 cartes + forgot/reset password |
+| Cockpit Player/Referee | ✅ | hero stats + ActionCards + VacationCard |
+| Feed /actualites | ✅ | FAB composer + 5 invalidations |
+| Notifications | ✅ | paginé 15 types |
+| Conversations | ✅ | polling 10s + CTAs propositions |
+| Mes tournois | ✅ | 3 pills En cours/À venir/Passés |
+| Tournois liste | ✅ | filtres dates + tags |
+| Tournois création | ✅ | wizard 3 étapes |
+| **Tournoi détail** | ✅ | refonte 20/4 : 12 features (partner picker, Share, Salon, BracketView SVG, subscribe club, waitlist, TS badges, groupement matchs, format+phase) |
+| **Score live tournoi** | ✅ | refonte 20/4 : timer mm:ss + LivePulseBadge Reanimated + canScore owner + player names |
+| **Match amical live** | ✅ | refonte 20/4 : timer + ELO delta + photo share + Trophy doré + footer |
+| **Match tab non-auth** | ✅ | hero Swords 72×72 + 4 étapes couleurs + CTA final "Prêt à jouer ?" |
+| Match tab auth | ✅ | ELO card + 3 règles + game proposals |
+| Partenaires | ✅ | swipe Tinder amical + CandidateCard Reanimated |
+| **Clubs détail** | ✅ | refonte 20/4 : header navy + stats + Google Maps + feed patron + 3 services |
+| Profil (4 tabs) | ✅ | Camera upload photo + Infos/Posts/Tournois/Matchs |
+
+**Composants mobiles nouveaux session 20 avril** :
+- `CreatePostSheet` — bottom-sheet post avec image picker + tournoi selector
+- `TournamentSalon` — chat polling 5s
+- `RegisterPartnerPicker` — dialog search users à l'inscription
+- `BracketView` — SVG RN port Emergent (layout analytique déterministe)
+- `LivePulseBadge` — Reanimated opacity 1↔0.4 durée 800ms
+- `MatchTimerChip` + hook `useElapsedTime(iso, active)` — timer mm:ss
+- Helper `invalidateFeedKeys(qc)` — centralise invalidations feed + profile-posts
 
 ### Décisions produit actées
 - **BottomNav** : 5 onglets = Actu / Tournois / Cockpit / **Match** (remplace Clubs) / Partenaires
