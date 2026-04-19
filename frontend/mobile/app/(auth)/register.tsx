@@ -4,6 +4,7 @@ import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   ArrowRight,
+  Building2,
   CreditCard,
   Lock,
   Mail,
@@ -30,7 +31,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Input, Text, useFadeInUp } from '@/design-system';
 import { api, formatApiError } from '@/lib/api';
 
-type AccountType = 'player' | 'referee';
+type AccountType = 'player' | 'referee' | 'club_owner';
 
 interface ClubResult {
   uuid: string;
@@ -84,13 +85,26 @@ export default function RegisterScreen() {
 
   const params = useLocalSearchParams<{ accountType?: string }>();
   const initialAccountType: AccountType | null =
-    params.accountType === 'player' || params.accountType === 'referee'
+    params.accountType === 'player' ||
+    params.accountType === 'referee' ||
+    params.accountType === 'club_owner'
       ? params.accountType
       : null;
   const [accountType, setAccountType] = useState<AccountType | null>(initialAccountType);
 
   if (!accountType) {
     return <AccountTypeSelector onPick={setAccountType} onBack={() => router.back()} />;
+  }
+
+  if (accountType === 'club_owner') {
+    return (
+      <ClubOwnerForm
+        onBack={() => setAccountType(null)}
+        onSuccess={(clubUuid) => router.replace(`/clubs/${clubUuid}`)}
+        onFallback={() => router.replace('/(tabs)/cockpit')}
+        register={register}
+      />
+    );
   }
 
   return (
@@ -177,6 +191,24 @@ function AccountTypeSelector({
               </View>
               <Text variant="caption" className="mt-3">
                 Crée tes tournois, gère inscriptions, génère tableaux et convocations en un clic.
+              </Text>
+            </Card>
+          </Pressable>
+
+          <Pressable onPress={() => onPick('club_owner')}>
+            <Card>
+              <View className="flex-row items-center gap-4">
+                <View className="h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+                  <Building2 size={26} color="#1A2A4A" />
+                </View>
+                <View className="flex-1">
+                  <Text variant="h3">Patron de club</Text>
+                  <Text variant="caption">Gère la page de ton club</Text>
+                </View>
+                <ArrowRight size={18} color="#1A2A4A" />
+              </View>
+              <Text variant="caption" className="mt-3">
+                Publie des annonces, vois tes membres et tes tournois en un coup d&apos;œil.
               </Text>
             </Card>
           </Pressable>
@@ -714,6 +746,396 @@ function RegisterForm({
                   <Badge label="Compte juge arbitre" tone="neutral" />
                 </View>
               )}
+            </Card>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+// ───────────────────────────────────────────────────────────
+// Club owner — register + claim club post-création
+// ───────────────────────────────────────────────────────────
+const clubOwnerSchema = z.object({
+  first_name: z.string().min(1, 'Prénom requis').max(100),
+  last_name: z.string().min(1, 'Nom requis').max(100),
+  email: z.string().min(1, 'Email requis').email('Email invalide'),
+  password: z
+    .string()
+    .min(8, 'Min. 8 caractères')
+    .regex(/[A-Za-z]/, 'Au moins une lettre')
+    .regex(/[0-9]/, 'Au moins un chiffre'),
+  city: z.string().max(100).optional().or(z.literal('')),
+  bio: z.string().max(500).optional().or(z.literal('')),
+});
+type ClubOwnerFormValues = z.infer<typeof clubOwnerSchema>;
+
+function ClubOwnerForm({
+  onBack,
+  onSuccess,
+  onFallback,
+  register,
+}: {
+  onBack: () => void;
+  onSuccess: (clubUuid: string) => void;
+  onFallback: () => void;
+  register: (p: Record<string, unknown>) => Promise<unknown>;
+}) {
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [clubType, setClubType] = useState<'associatif' | 'prive' | null>(null);
+
+  const [clubQuery, setClubQuery] = useState('');
+  const [clubResults, setClubResults] = useState<ClubResult[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [selectedClub, setSelectedClub] = useState<ClubResult | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<ClubOwnerFormValues>({
+    resolver: zodResolver(clubOwnerSchema),
+    defaultValues: { first_name: '', last_name: '', email: '', password: '', city: '', bio: '' },
+  });
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (clubQuery.length < 2) {
+      setClubResults([]);
+      setShowResults(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/clubs/search', { params: { q: clubQuery } });
+        setClubResults(((data?.data ?? []) as ClubResult[]).slice(0, 6));
+        setShowResults(true);
+      } catch {
+        setClubResults([]);
+      }
+    }, 250);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [clubQuery]);
+
+  const pickClub = (club: ClubResult) => {
+    setSelectedClub(club);
+    setClubQuery(club.name);
+    setShowResults(false);
+    setValue('city', club.city, { shouldValidate: false });
+  };
+
+  const onSubmit = async (values: ClubOwnerFormValues) => {
+    if (!selectedClub) {
+      setServerError('Sélectionne ton club dans la liste.');
+      return;
+    }
+    if (!clubType) {
+      setServerError('Indique si ton club est associatif ou privé.');
+      return;
+    }
+    setServerError(null);
+    setSubmitting(true);
+    try {
+      await register({
+        first_name: values.first_name,
+        last_name: values.last_name,
+        email: values.email,
+        password: values.password,
+        city: values.city || undefined,
+        role: 'club_owner',
+      });
+
+      // Une fois inscrit, l'intercepteur a stocké l'access_token → /clubs/claim part authentifié.
+      try {
+        const { data } = await api.post('/clubs/claim', {
+          club_uuid: selectedClub.uuid,
+          club_type: clubType,
+        });
+        const clubUuid = (data?.data?.uuid ?? selectedClub.uuid) as string;
+        onSuccess(clubUuid);
+      } catch {
+        // Claim raté (ex: club déjà revendiqué) — on ne bloque pas l'inscription,
+        // on redirige vers cockpit qui affichera ses pages.
+        onFallback();
+      }
+    } catch (err) {
+      setServerError(formatApiError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View className="flex-1 bg-brand-bg">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        className="flex-1"
+      >
+        <ScrollView
+          contentContainerClassName="flex-grow"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <LinearGradient
+            colors={['#1A2A4A', '#2A4A6A']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ paddingHorizontal: 24, paddingTop: 48, paddingBottom: 28 }}
+          >
+            <Pressable onPress={onBack} hitSlop={8}>
+              <ArrowLeft size={22} color="#FFFFFF" />
+            </Pressable>
+            <View className="mt-3 flex-row items-center gap-3">
+              <View className="h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+                <Building2 size={20} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text variant="h2" className="text-white">
+                  Compte Patron de club
+                </Text>
+                <Text variant="caption" className="text-white/60">
+                  Prends la main sur ta page club
+                </Text>
+              </View>
+            </View>
+          </LinearGradient>
+
+          <View className="px-5 py-5">
+            <Card>
+              {serverError ? (
+                <View className="mb-4 rounded-2xl border border-red-100 bg-red-50 p-3">
+                  <Text variant="caption" className="font-body-medium text-brand-danger">
+                    {serverError}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View className="flex-row gap-2">
+                <View className="flex-1">
+                  <Controller
+                    control={control}
+                    name="first_name"
+                    render={({ field: { value, onChange, onBlur } }) => (
+                      <Input
+                        label="Prénom *"
+                        placeholder="Prénom"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        fieldBg="brand"
+                        error={errors.first_name?.message ?? null}
+                      />
+                    )}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Controller
+                    control={control}
+                    name="last_name"
+                    render={({ field: { value, onChange, onBlur } }) => (
+                      <Input
+                        label="Nom *"
+                        placeholder="Nom"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        fieldBg="brand"
+                        error={errors.last_name?.message ?? null}
+                      />
+                    )}
+                  />
+                </View>
+              </View>
+
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { value, onChange, onBlur } }) => (
+                  <Input
+                    label="Email *"
+                    placeholder="ton@email.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    fieldBg="brand"
+                    leftIcon={<Mail size={16} color="#94A3B8" />}
+                    error={errors.email?.message ?? null}
+                    className="mt-4"
+                  />
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { value, onChange, onBlur } }) => (
+                  <Input
+                    label="Mot de passe *"
+                    placeholder="Minimum 8 caractères"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    fieldBg="brand"
+                    leftIcon={<Lock size={16} color="#94A3B8" />}
+                    error={errors.password?.message ?? null}
+                    className="mt-4"
+                  />
+                )}
+              />
+
+              <View className="mt-5 rounded-2xl border border-brand-orange/30 bg-brand-orange-light p-4">
+                <View className="mb-2 flex-row items-center gap-2">
+                  <Building2 size={14} color="#E8650A" />
+                  <Text className="font-heading text-[13px] text-brand-navy">Ton club *</Text>
+                </View>
+
+                <Text
+                  variant="caption"
+                  className="mb-1.5 font-heading text-[10px] uppercase tracking-wider text-brand-orange"
+                >
+                  Cherche ton club
+                </Text>
+                <View className="flex-row items-center gap-2 rounded-xl border border-brand-border bg-white px-3 py-2">
+                  <Search size={14} color="#94A3B8" />
+                  <TextInput
+                    value={clubQuery}
+                    onChangeText={(t) => {
+                      setClubQuery(t);
+                      if (selectedClub && t !== selectedClub.name) setSelectedClub(null);
+                    }}
+                    placeholder="Nom du club ou ville..."
+                    placeholderTextColor="#94A3B8"
+                    className="flex-1 text-brand-navy"
+                  />
+                </View>
+
+                {showResults && clubResults.length > 0 ? (
+                  <View className="mt-2 gap-1.5">
+                    {clubResults.map((club) => (
+                      <Pressable
+                        key={club.uuid}
+                        onPress={() => pickClub(club)}
+                        className="rounded-xl border border-brand-border bg-white px-3 py-2"
+                      >
+                        <Text className="font-heading text-[13px] text-brand-navy">{club.name}</Text>
+                        <Text variant="caption" className="text-[11px]">
+                          {club.city}
+                          {club.postal_code ? ` (${club.postal_code})` : ''}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+
+                {selectedClub ? (
+                  <View className="mt-2 rounded-xl border border-green-200 bg-white p-3">
+                    <Text
+                      variant="caption"
+                      className="font-heading text-[10px] uppercase tracking-wider text-green-700"
+                    >
+                      ✓ Club sélectionné
+                    </Text>
+                    <Text className="mt-1 font-heading text-[13px] text-brand-navy">
+                      {selectedClub.name}
+                    </Text>
+                    <Text variant="caption" className="text-[11px]">
+                      {selectedClub.city}
+                      {selectedClub.postal_code ? ` (${selectedClub.postal_code})` : ''}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <Text
+                variant="caption"
+                className="mb-1.5 mt-5 font-heading text-[10px] uppercase tracking-wider text-brand-navy"
+              >
+                Type de club *
+              </Text>
+              <View className="flex-row gap-2">
+                {(
+                  [
+                    { value: 'associatif', label: 'Associatif', sub: 'Loi 1901 / ASSO', emoji: '🤝' },
+                    { value: 'prive', label: 'Privé', sub: 'Entreprise / SARL / SAS', emoji: '🏢' },
+                  ] as const
+                ).map((opt) => {
+                  const active = clubType === opt.value;
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => setClubType(opt.value)}
+                      className="flex-1 items-center rounded-2xl border px-3 py-3"
+                      style={{
+                        borderColor: active ? '#1A2A4A' : '#F0EBE8',
+                        borderWidth: active ? 2 : 1,
+                        backgroundColor: active ? '#EEF1F7' : '#FFFFFF',
+                      }}
+                    >
+                      <Text className="text-[22px]">{opt.emoji}</Text>
+                      <Text className="mt-1 font-heading text-[13px] text-brand-navy">
+                        {opt.label}
+                      </Text>
+                      <Text variant="caption" className="text-[10px]">
+                        {opt.sub}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Controller
+                control={control}
+                name="city"
+                render={({ field: { value, onChange, onBlur } }) => (
+                  <Input
+                    label="Ville"
+                    placeholder="Ville du club"
+                    value={value ?? ''}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    fieldBg="brand"
+                    leftIcon={<MapPin size={16} color="#94A3B8" />}
+                    className="mt-5"
+                  />
+                )}
+              />
+
+              <View className="mt-5 rounded-2xl border border-green-200 bg-[#F0FDF4] p-3">
+                <Text variant="caption" className="text-[11px] text-[#15803D]">
+                  ✅ Ton club sera associé à ton compte dès l&apos;inscription. Les joueurs pourront
+                  te suivre et tes tournois apparaîtront sur ta page.
+                </Text>
+              </View>
+
+              <Button
+                label={submitting ? 'Création...' : 'Créer mon compte club'}
+                onPress={handleSubmit(onSubmit)}
+                loading={submitting}
+                className="mt-5"
+                leftIcon={!submitting ? <ArrowRight size={18} color="#FFFFFF" /> : undefined}
+              />
+
+              <View className="mt-4 flex-row items-center justify-center">
+                <Text variant="caption">Déjà un compte ?</Text>
+                <Link href="/(auth)/login" asChild>
+                  <Pressable>
+                    <Text variant="caption" className="ml-1 font-heading text-brand-orange">
+                      Connecte-toi
+                    </Text>
+                  </Pressable>
+                </Link>
+              </View>
             </Card>
           </View>
         </ScrollView>

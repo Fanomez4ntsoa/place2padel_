@@ -143,11 +143,21 @@ export default function LoginScreen() {
                 )}
               />
 
+              <View className="mt-3 flex-row items-center justify-end">
+                <Link href="/(auth)/forgot-password" asChild>
+                  <Pressable>
+                    <Text variant="caption" className="font-heading text-brand-orange">
+                      Mot de passe oublié ?
+                    </Text>
+                  </Pressable>
+                </Link>
+              </View>
+
               <Button
                 label={submitting ? 'Connexion...' : 'Se connecter'}
                 onPress={handleSubmit(onSubmit)}
                 loading={submitting}
-                className="mt-5"
+                className="mt-3"
                 leftIcon={!submitting ? <ArrowRight size={18} color="#FFFFFF" /> : undefined}
               />
 

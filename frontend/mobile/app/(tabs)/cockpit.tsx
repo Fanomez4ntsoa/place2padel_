@@ -188,7 +188,7 @@ function CockpitPlayer({
 }: {
   name?: string;
   userUuid: string;
-  role: 'player' | 'organizer' | 'referee' | 'admin';
+  role: 'player' | 'organizer' | 'referee' | 'admin' | 'club_owner';
   padelPoints?: number;
   onLogout: () => void;
 }) {

@@ -16,7 +16,7 @@ export interface AuthUser {
   name: string;
   first_name?: string;
   last_name?: string;
-  role: 'player' | 'organizer' | 'referee' | 'admin';
+  role: 'player' | 'organizer' | 'referee' | 'admin' | 'club_owner';
   picture_url?: string | null;
   [key: string]: unknown;
 }

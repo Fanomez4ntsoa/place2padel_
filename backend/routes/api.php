@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Auth\Controllers\ForgotPasswordController;
 use App\Modules\Auth\Controllers\GoogleCallbackController;
 use App\Modules\Auth\Controllers\GoogleRedirectController;
 use App\Modules\Auth\Controllers\LoginController;
@@ -8,6 +9,8 @@ use App\Modules\Auth\Controllers\LogoutController;
 use App\Modules\Auth\Controllers\MeController;
 use App\Modules\Auth\Controllers\RefreshController;
 use App\Modules\Auth\Controllers\RegisterController;
+use App\Modules\Auth\Controllers\ResetPasswordController;
+use App\Modules\Club\Controllers\ClaimClubController;
 use App\Modules\Club\Controllers\ListSubscriptionsController;
 use App\Modules\Club\Controllers\SearchClubsController;
 use App\Modules\Club\Controllers\ShowClubController;
@@ -59,6 +62,7 @@ use App\Modules\Matchmaking\Controllers\PostMessageController;
 use App\Modules\Matchmaking\Controllers\ProposeToPartnerController;
 use App\Modules\Matchmaking\Controllers\RespondProposalController;
 use App\Modules\User\Controllers\SearchTenupController;
+use App\Modules\Waitlist\Controllers\JoinWaitlistController;
 use App\Modules\User\Controllers\SearchUsersController;
 use App\Modules\User\Controllers\ShowProfileController;
 use App\Modules\User\Controllers\SyncTenupProfileController;
@@ -86,6 +90,19 @@ Route::prefix('v1')->group(function () {
     Route::get('auth/google/callback', GoogleCallbackController::class)
         ->middleware('throttle:20,1')
         ->name('auth.google.callback');
+
+    Route::post('auth/forgot-password', ForgotPasswordController::class)
+        ->middleware('throttle:5,1')
+        ->name('auth.forgot-password');
+
+    Route::post('auth/reset-password', ResetPasswordController::class)
+        ->middleware('throttle:10,1')
+        ->name('auth.reset-password');
+
+    // Waitlist — public (auth optionnelle). Si Bearer token valide, user_id est lié automatiquement.
+    Route::post('waitlist', JoinWaitlistController::class)
+        ->middleware('throttle:10,1')
+        ->name('waitlist.join');
 
     Route::middleware(['auth:sanctum', 'access-token'])->group(function () {
         Route::get('auth/me', MeController::class)->name('auth.me');
@@ -115,6 +132,12 @@ Route::prefix('v1')->group(function () {
         Route::delete('clubs/{club}/subscribe', UnsubscribeClubController::class)
             ->middleware('throttle:30,1')
             ->name('clubs.unsubscribe');
+
+        // Claim — patron de club revendique la propriété d'un club existant.
+        // Auth strict : role=club_owner ou admin (enforced in ClaimClubRequest::authorize).
+        Route::post('clubs/claim', ClaimClubController::class)
+            ->middleware('throttle:10,1')
+            ->name('clubs.claim');
 
         Route::post('tournaments', CreateTournamentController::class)
             ->middleware('throttle:20,1')

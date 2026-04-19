@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
 import {
+  Bell,
   Calendar,
+  CheckCircle2,
   GraduationCap,
   Heart,
   Home as HomeIcon,
@@ -12,11 +14,13 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { ComponentType, useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { Text, useFadeInUp } from '@/design-system';
+import { Button, Text, useFadeInUp } from '@/design-system';
+import { api, formatApiError } from '@/lib/api';
+import { showToast } from '@/lib/toast';
 
 type IconCmp = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 
@@ -112,16 +116,58 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [activePopup, setActivePopup] = useState<PopupKey | null>(null);
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistDone, setWaitlistDone] = useState(false);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistError, setWaitlistError] = useState<string | null>(null);
 
   const fadeHero = useFadeInUp(0);
   const popup = activePopup ? POPUPS[activePopup] : null;
   const firstName = user?.first_name ?? user?.name?.split(' ')[0];
+  const isLoggedIn = !!user;
+
+  const openPopup = (key: PopupKey) => {
+    setActivePopup(key);
+    setWaitlistDone(false);
+    setWaitlistEmail('');
+    setWaitlistError(null);
+  };
+
+  const closePopup = () => {
+    setActivePopup(null);
+    setWaitlistDone(false);
+    setWaitlistError(null);
+  };
 
   const handle = (card: GridCard) => {
     if (card.action.type === 'nav') {
       router.push(card.action.href as never);
     } else {
-      setActivePopup(card.action.key);
+      openPopup(card.action.key);
+    }
+  };
+
+  const submitWaitlist = async () => {
+    if (!activePopup) return;
+    const email = isLoggedIn ? user?.email : waitlistEmail.trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      setWaitlistError('Entre ton email pour être prévenu.');
+      return;
+    }
+
+    setWaitlistError(null);
+    setWaitlistLoading(true);
+    try {
+      const payload: { feature: PopupKey; email?: string } = { feature: activePopup };
+      if (!isLoggedIn) payload.email = email;
+
+      const { data } = await api.post('/waitlist', payload);
+      setWaitlistDone(true);
+      showToast(data?.message ?? 'Inscription enregistrée.', 'success');
+    } catch (err) {
+      setWaitlistError(formatApiError(err));
+    } finally {
+      setWaitlistLoading(false);
     }
   };
 
@@ -184,31 +230,104 @@ export default function HomeScreen() {
       </ScrollView>
 
       {popup ? (
-        <Modal transparent animationType="fade" onRequestClose={() => setActivePopup(null)}>
-          <Pressable onPress={() => setActivePopup(null)} className="flex-1 bg-black/55" />
-          <View
-            className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white px-6 pb-10 pt-5"
-            style={{ borderTopColor: popup.color, borderTopWidth: 4 }}
+        <Modal transparent animationType="fade" onRequestClose={closePopup}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            className="flex-1"
           >
-            <Pressable
-              onPress={() => setActivePopup(null)}
-              hitSlop={8}
-              className="absolute right-4 top-4 z-10"
-            >
-              <X size={22} color="#1A2A4A" />
-            </Pressable>
+            <Pressable onPress={closePopup} className="flex-1 bg-black/55" />
             <View
-              className="mb-4 h-16 w-16 items-center justify-center rounded-2xl"
-              style={{ backgroundColor: popup.bg }}
+              className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white px-6 pb-10 pt-5"
+              style={{ borderTopColor: popup.color, borderTopWidth: 4 }}
             >
-              <Text className="text-[28px]">{popup.emoji}</Text>
+              <Pressable
+                onPress={closePopup}
+                hitSlop={8}
+                className="absolute right-4 top-4 z-10"
+              >
+                <X size={22} color="#1A2A4A" />
+              </Pressable>
+              <View
+                className="mb-4 h-16 w-16 items-center justify-center rounded-2xl"
+                style={{ backgroundColor: popup.bg }}
+              >
+                <Text className="text-[28px]">{popup.emoji}</Text>
+              </View>
+              <Text variant="h2" className="text-[22px]">{popup.title}</Text>
+              <Text variant="body" className="mt-2">{popup.desc}</Text>
+              <View className="mt-3 self-start rounded-full px-3 py-1" style={{ backgroundColor: popup.bg }}>
+                <Text
+                  variant="caption"
+                  className="font-heading text-[11px]"
+                  style={{ color: popup.color }}
+                >
+                  Disponible très bientôt
+                </Text>
+              </View>
+
+              {waitlistDone ? (
+                <View className="mt-5 items-center py-3">
+                  <CheckCircle2 size={36} color="#16A34A" />
+                  <Text variant="h3" className="mt-2 text-brand-navy">
+                    Tu es sur la liste !
+                  </Text>
+                  <Text variant="body" className="mt-1 text-brand-text-soft text-center">
+                    On te préviendra dès que c&apos;est disponible.
+                  </Text>
+                  <Button label="Fermer" onPress={closePopup} className="mt-4 w-full" />
+                </View>
+              ) : (
+                <View className="mt-5">
+                  {!isLoggedIn ? (
+                    <View>
+                      <Text
+                        variant="caption"
+                        className="mb-1.5 font-heading text-[11px] uppercase tracking-wider text-brand-text-soft"
+                      >
+                        Ton email
+                      </Text>
+                      <TextInput
+                        value={waitlistEmail}
+                        onChangeText={setWaitlistEmail}
+                        placeholder="ton@email.com"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoComplete="email"
+                        className="h-12 rounded-2xl border border-brand-border bg-brand-bg px-4 text-brand-navy"
+                      />
+                    </View>
+                  ) : (
+                    <View className="flex-row items-center gap-2 rounded-2xl border border-green-200 bg-[#F0FDF4] px-3 py-2.5">
+                      <CheckCircle2 size={18} color="#15803D" />
+                      <View className="flex-1">
+                        <Text variant="caption" className="font-heading text-[12px] text-[#15803D]">
+                          Connecté en tant que {user?.first_name ?? user?.name}
+                        </Text>
+                        <Text variant="caption" className="text-[11px]" style={{ color: '#16A34A' }}>
+                          {user?.email}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {waitlistError ? (
+                    <Text variant="caption" className="mt-2 text-brand-danger">
+                      {waitlistError}
+                    </Text>
+                  ) : null}
+
+                  <Button
+                    label={waitlistLoading ? 'Inscription...' : 'Me tenir informé'}
+                    onPress={submitWaitlist}
+                    loading={waitlistLoading}
+                    className="mt-4"
+                    leftIcon={!waitlistLoading ? <Bell size={16} color="#FFFFFF" /> : undefined}
+                  />
+                </View>
+              )}
             </View>
-            <Text variant="h2" className="text-[22px]">{popup.title}</Text>
-            <Text variant="body" className="mt-2">{popup.desc}</Text>
-            <View className="mt-4 self-start rounded-full bg-slate-100 px-3 py-1">
-              <Text variant="caption" className="font-heading text-brand-muted text-[11px]">À venir</Text>
-            </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       ) : null}
     </View>

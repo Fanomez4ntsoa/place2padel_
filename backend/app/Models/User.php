@@ -183,4 +183,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(PostComment::class);
     }
+
+    /**
+     * Clubs dont cet user est propriétaire (role=club_owner). Relation 1..N via clubs.owner_id.
+     * En pratique un user ne revendique qu'un seul club mais la relation reste HasMany
+     * pour autoriser le cas admin qui revendique plusieurs clubs.
+     */
+    public function ownedClubs(): HasMany
+    {
+        return $this->hasMany(Club::class, 'owner_id');
+    }
 }
