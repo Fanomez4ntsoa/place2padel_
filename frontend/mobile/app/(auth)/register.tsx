@@ -10,8 +10,6 @@ import {
   Mail,
   MapPin,
   Search,
-  Swords,
-  Trophy,
   User as UserIcon,
 } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
@@ -24,12 +22,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { z } from 'zod';
 
 import { AccountRoleCardsList } from '@/components/auth/AccountRoleCards';
 import { useAuth } from '@/contexts/AuthContext';
-import { Badge, Button, Card, Input, Text, useFadeInUp } from '@/design-system';
+import { Badge, Button, Card, Input, Text } from '@/design-system';
+import { useClubsQuickSearch } from '@/features/clubs/useClubs';
+import type { AvailabilitySlot } from '@/features/profile/useProfile';
+import { SLOT_PRESETS, slotKey, toggleSlotPreset } from '@/features/profile/slots';
 import { api, formatApiError } from '@/lib/api';
 
 type AccountType = 'player' | 'referee' | 'club_owner';
@@ -41,27 +41,17 @@ interface ClubResult {
   postal_code: string | null;
 }
 
+/**
+ * 5 niveaux alignés sur `UpdateProfileRequest::padel_level` (between:1,5) et
+ * `users_profiles.padel_level`. L'échelle 1-10 Emergent est aplatie ici pour
+ * éviter le rejet backend silencieux.
+ */
 const NIVEAUX: { value: number; desc: string }[] = [
   { value: 1, desc: 'Débutant — je découvre le padel' },
   { value: 2, desc: 'Je connais les bases' },
   { value: 3, desc: 'Je joue régulièrement en loisir' },
   { value: 4, desc: 'Joueur confirmé, premiers tournois' },
-  { value: 5, desc: 'Compétiteur régulier P25/P50' },
-  { value: 6, desc: 'Bon niveau P100/P250' },
-  { value: 7, desc: 'Très bon niveau P500' },
-  { value: 8, desc: 'Excellent P1000' },
-  { value: 9, desc: 'Elite P2000' },
-  { value: 10, desc: 'Professionnel / Top national' },
-];
-
-const JOURS = [
-  { value: 1, short: 'Lun' },
-  { value: 2, short: 'Mar' },
-  { value: 3, short: 'Mer' },
-  { value: 4, short: 'Jeu' },
-  { value: 5, short: 'Ven' },
-  { value: 6, short: 'Sam' },
-  { value: 7, short: 'Dim' },
+  { value: 5, desc: 'Compétiteur régulier P25+' },
 ];
 
 const baseSchema = z.object({
@@ -180,13 +170,18 @@ function RegisterForm({
   // Champs spécifiques joueur hors RHF pour simplicité (grilles + slider).
   const [position, setPosition] = useState<'left' | 'right' | 'both' | null>(null);
   const [niveau, setNiveau] = useState<number>(0);
-  const [availabilities, setAvailabilities] = useState<number[]>([]);
+  // Availabilities — tuples {day_of_week, period} alignés backend (10 presets max,
+  // Flexible exclusif). Format `AvailabilitySlot[]` pour envoi direct au register.
+  const [availabilities, setAvailabilities] = useState<AvailabilitySlot[]>([]);
   const [radius, setRadius] = useState<number>(50);
 
   const [clubQuery, setClubQuery] = useState('');
   const [clubResults, setClubResults] = useState<ClubResult[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [selectedClub, setSelectedClub] = useState<ClubResult | null>(null);
+  // Clubs secondaire & tertiaire (priority 2 & 3) — port parité Emergent d5ac086.
+  const [selectedClub2, setSelectedClub2] = useState<ClubResult | null>(null);
+  const [selectedClub3, setSelectedClub3] = useState<ClubResult | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
@@ -235,12 +230,6 @@ function RegisterForm({
     setValue('city', club.city, { shouldValidate: false });
   };
 
-  const toggleAvailability = (day: number) => {
-    setAvailabilities((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
-    );
-  };
-
   const onSubmit = async (values: FormValues) => {
     // Validations player-only.
     if (accountType === 'player') {
@@ -263,9 +252,15 @@ function RegisterForm({
     }
     setServerError(null);
     setSubmitting(true);
+
+    // Construit l'array clubs ordonné (priority 1..3). `selectedClub` sert
+    // toujours au referee (club_uuid legacy) ; pour le player on part sur
+    // `clubs` array qui prime backend-side.
+    const clubsOrdered: string[] = [selectedClub, selectedClub2, selectedClub3]
+      .filter((c): c is ClubResult => !!c)
+      .map((c) => c.uuid);
+
     try {
-      // Backend Phase 1 n'accepte pas encore tous les champs (position, niveau, bio,
-      // availabilities). Ils sont envoyés mais ignorés — alignement Phase 6.2.
       await register({
         first_name: values.first_name,
         last_name: values.last_name,
@@ -273,8 +268,11 @@ function RegisterForm({
         password: values.password,
         license_number: values.license_number || undefined,
         city: values.city || undefined,
-        bio: values.bio || undefined,
-        club_uuid: selectedClub?.uuid ?? undefined,
+        bio: accountType === 'player' && values.bio ? values.bio : undefined,
+        // Player → clubs[] (1 à 3). Referee/autre → club_uuid legacy singleton.
+        ...(accountType === 'player'
+          ? { clubs: clubsOrdered.length > 0 ? clubsOrdered : undefined }
+          : { club_uuid: selectedClub?.uuid ?? undefined }),
         max_radius_km: accountType === 'player' ? radius : undefined,
         role: accountType,
         position: accountType === 'player' ? position : undefined,
@@ -489,32 +487,36 @@ function RegisterForm({
                     </View>
                   </View>
 
-                  {/* Disponibilités — jours (simplifié vs slots Emergent, aligné backend) */}
+                  {/* Disponibilités — 10 presets alignés backend (tuples {day, period}) */}
                   <View className="mt-4">
                     <Text variant="caption" className="font-body-medium uppercase tracking-wider text-brand-orange text-[10px]">
                       Tes disponibilités *
                     </Text>
                     <Text variant="caption" className="mb-2 text-[10px]">
-                      Jours où tu joues habituellement
+                      Choisis tes créneaux habituels. &quot;Flexible&quot; désélectionne les autres.
                     </Text>
                     <View className="flex-row flex-wrap gap-2">
-                      {JOURS.map((j) => {
-                        const active = availabilities.includes(j.value);
+                      {SLOT_PRESETS.map((preset) => {
+                        const active = availabilities.some(
+                          (s) => slotKey(s) === `${preset.day_of_week ?? 'null'}:${preset.period}`,
+                        );
+                        const isFlex = preset.day_of_week === null;
+                        const activeBg = isFlex ? 'border-brand-navy bg-brand-navy' : 'border-brand-orange bg-brand-orange';
                         return (
                           <Pressable
-                            key={j.value}
-                            onPress={() => toggleAvailability(j.value)}
+                            key={preset.key}
+                            onPress={() =>
+                              setAvailabilities((prev) => toggleSlotPreset(prev, preset))
+                            }
                             className={`rounded-full border-2 px-3 py-1.5 ${
-                              active
-                                ? 'border-brand-orange bg-brand-orange'
-                                : 'border-brand-border bg-white'
+                              active ? activeBg : 'border-brand-border bg-white'
                             }`}
                           >
                             <Text
                               variant="caption"
-                              className={`font-heading text-[12px] ${active ? 'text-white' : 'text-brand-navy'}`}
+                              className={`font-heading text-[11px] ${active ? 'text-white' : 'text-brand-navy'}`}
                             >
-                              {j.short}
+                              {preset.label}
                             </Text>
                           </Pressable>
                         );
@@ -522,17 +524,19 @@ function RegisterForm({
                     </View>
                     {availabilities.length > 0 ? (
                       <Text variant="caption" className="mt-1 font-body-medium text-brand-success">
-                        ✅ {availabilities.length} jour{availabilities.length > 1 ? 's' : ''} sélectionné{availabilities.length > 1 ? 's' : ''}
+                        ✅ {availabilities.length} créneau{availabilities.length > 1 ? 'x' : ''} sélectionné{availabilities.length > 1 ? 's' : ''}
                       </Text>
                     ) : null}
                   </View>
                 </>
               ) : null}
 
-              {/* Club (player et referee) */}
+              {/* Club principal (player requis, referee optionnel) */}
               <View className="mt-4">
                 <Input
-                  label={accountType === 'player' ? 'CLUB PRINCIPAL *' : 'CLUB'}
+                  label={
+                    accountType === 'player' ? 'CLUB PRINCIPAL *' : 'CLUB (OPTIONNEL)'
+                  }
                   placeholder="Cherche ton club..."
                   value={clubQuery}
                   onChangeText={(t) => {
@@ -567,6 +571,30 @@ function RegisterForm({
                   </Text>
                 ) : null}
               </View>
+
+              {/* Clubs secondaire & tertiaire — player uniquement, optionnels */}
+              {accountType === 'player' ? (
+                <>
+                  <SecondaryClubPicker
+                    label="CLUB SECONDAIRE (OPTIONNEL)"
+                    current={selectedClub2}
+                    onPick={setSelectedClub2}
+                    onRemove={() => setSelectedClub2(null)}
+                    excludeUuids={[selectedClub?.uuid, selectedClub3?.uuid].filter(
+                      (u): u is string => !!u,
+                    )}
+                  />
+                  <SecondaryClubPicker
+                    label="CLUB TERTIAIRE (OPTIONNEL)"
+                    current={selectedClub3}
+                    onPick={setSelectedClub3}
+                    onRemove={() => setSelectedClub3(null)}
+                    excludeUuids={[selectedClub?.uuid, selectedClub2?.uuid].filter(
+                      (u): u is string => !!u,
+                    )}
+                  />
+                </>
+              ) : null}
 
               {/* Ville */}
               <Controller
@@ -790,6 +818,9 @@ function ClubOwnerForm({
         email: values.email,
         password: values.password,
         city: values.city || undefined,
+        // Description du club — persistée sur user_profiles.bio au register
+        // et récupérable plus tard pour alimenter clubs.description via /clubs/claim.
+        bio: values.bio || undefined,
         role: 'club_owner',
       });
 
@@ -1053,6 +1084,33 @@ function ClubOwnerForm({
                 )}
               />
 
+              {/* Description du club — port Emergent d5ac086 (textarea 3 lignes). */}
+              <View className="mt-5">
+                <Text
+                  className="mb-1.5 font-heading text-[10px] uppercase tracking-wider text-brand-navy"
+                >
+                  Description du club
+                </Text>
+                <Controller
+                  control={control}
+                  name="bio"
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      value={value ?? ''}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Présente ton club — courts, ambiance, événements..."
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={3}
+                      maxLength={500}
+                      style={{ textAlignVertical: 'top', minHeight: 72 }}
+                      className="rounded-2xl border border-brand-border bg-brand-bg px-3 py-2 font-body text-[14px] text-brand-navy"
+                    />
+                  )}
+                />
+              </View>
+
               <View className="mt-5 rounded-2xl border border-green-200 bg-[#F0FDF4] p-3">
                 <Text variant="caption" className="text-[11px] text-[#15803D]">
                   ✅ Ton club sera associé à ton compte dès l&apos;inscription. Les joueurs pourront
@@ -1082,6 +1140,128 @@ function ClubOwnerForm({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+// ───────────────────────────────────────────────────────────
+// Club picker secondaire/tertiaire — autocomplete via useClubsQuickSearch.
+// Affiche dropdown si q>=2 chars ; card verte quand sélectionné (X reset).
+// Utilisé côté player pour les priorities 2 & 3.
+// ───────────────────────────────────────────────────────────
+function SecondaryClubPicker({
+  label,
+  current,
+  onPick,
+  onRemove,
+  excludeUuids,
+}: {
+  label: string;
+  current: ClubResult | null;
+  onPick: (club: ClubResult) => void;
+  onRemove: () => void;
+  excludeUuids: string[];
+}) {
+  const [q, setQ] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const { data: results = [], isFetching } = useClubsQuickSearch(debounced);
+  const visible = results
+    .filter((c) => !excludeUuids.includes(c.uuid))
+    .slice(0, 6);
+
+  if (current) {
+    return (
+      <View className="mt-3">
+        <Text
+          variant="caption"
+          className="font-body-medium uppercase tracking-wider text-brand-navy text-[10px]"
+        >
+          {label}
+        </Text>
+        <View className="mt-1 flex-row items-center justify-between rounded-2xl border border-green-200 bg-[#F0FDF4] px-3 py-2">
+          <View className="flex-1">
+            <Text variant="caption" className="font-heading text-[13px] text-brand-navy">
+              ✅ {current.name}
+            </Text>
+            <Text variant="caption" className="text-[11px]">
+              {current.city}
+              {current.postal_code ? ` (${current.postal_code})` : ''}
+            </Text>
+          </View>
+          <Pressable onPress={onRemove} hitSlop={8} className="px-2">
+            <Text className="font-heading text-[14px] text-brand-danger">✕</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View className="mt-3">
+      <Input
+        label={label}
+        placeholder="Cherche un club..."
+        value={q}
+        onChangeText={(t) => {
+          setQ(t);
+          setOpen(true);
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onFocus={() => setOpen(true)}
+        fieldBg="brand"
+        leftIcon={<Search size={14} color="#94A3B8" />}
+      />
+      {open && debounced.length >= 2 ? (
+        <View className="mt-1 overflow-hidden rounded-2xl border border-brand-border bg-white">
+          {isFetching ? (
+            <View className="px-4 py-3">
+              <Text variant="caption" className="text-brand-muted">
+                Recherche en cours…
+              </Text>
+            </View>
+          ) : visible.length === 0 ? (
+            <View className="px-4 py-3">
+              <Text variant="caption" className="text-brand-muted">
+                Aucun club trouvé
+              </Text>
+            </View>
+          ) : (
+            visible.map((c, idx) => (
+              <Pressable
+                key={c.uuid}
+                onPress={() => {
+                  onPick({
+                    uuid: c.uuid,
+                    name: c.name,
+                    city: c.city,
+                    postal_code: c.postal_code ?? null,
+                  });
+                  setQ('');
+                  setOpen(false);
+                }}
+                className={`px-4 py-2.5 ${
+                  idx < visible.length - 1 ? 'border-b border-brand-border' : ''
+                }`}
+              >
+                <Text variant="caption" className="font-body-medium text-brand-navy">
+                  {c.name}
+                </Text>
+                <Text variant="caption">
+                  {c.city}
+                  {c.postal_code ? ` (${c.postal_code})` : ''}
+                </Text>
+              </Pressable>
+            ))
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
