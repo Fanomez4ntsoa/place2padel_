@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { Bell, Menu, MessageCircle, Search, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
@@ -27,6 +27,7 @@ import { UniversalSearchOverlay } from './UniversalSearchOverlay';
  */
 export function AppHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const { unreadMessages, unreadNotifications } = useUnreadCounters();
@@ -37,6 +38,9 @@ export function AppHeader() {
 
   const isLoggedIn = !!user;
   const headerHeight = insets.top + 10 + 48; // insets.top + paddingBottom + row height
+
+  // Déjà sur /register → masquer le CTA "Inscription gratuite" (redondant).
+  const onRegisterPage = pathname?.startsWith('/register') ?? false;
 
   const toggleSearch = () => {
     setSearchOpen((prev) => {
@@ -92,7 +96,7 @@ export function AppHeader() {
 
           {/* Zone droite — actions auth-aware (masquées pendant search pour laisser
               la place à l'input + au toggle X) */}
-          {!searchOpen && !isLoggedIn ? (
+          {!searchOpen && !isLoggedIn && !onRegisterPage ? (
             <Pressable
               onPress={() => router.push('/(auth)/register')}
               className="h-8 shrink-0 items-center justify-center rounded-full bg-brand-orange px-3"
