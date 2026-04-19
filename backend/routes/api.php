@@ -114,7 +114,7 @@ Route::prefix('v1')->group(function () {
 
         Route::patch('profile', UpdateProfileController::class)->name('profile.update');
         Route::post('profile/photo', UploadProfilePhotoController::class)
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:60,1')
             ->name('profile.photo');
         Route::get('users/search', SearchUsersController::class)
             ->middleware('throttle:60,1')
