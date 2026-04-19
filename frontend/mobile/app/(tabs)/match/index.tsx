@@ -1,7 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
-  ArrowRight,
   Bell,
   Calendar,
   Check,
@@ -70,61 +69,225 @@ export default function FriendlyMatchScreen() {
 
 // ─── Landing non-auth ──────────────────────────────────────────
 
-const FEATURES: { icon: React.ComponentType<{ size?: number; color?: string }>; title: string; desc: string }[] = [
-  { icon: Users, title: 'Invite 3 joueurs', desc: 'Choisis ton partenaire et les 2 adversaires.' },
-  { icon: Check, title: 'Lance dès que tous prêts', desc: 'Chacun accepte, le match démarre.' },
-  { icon: TrendingUp, title: 'Score en temps réel', desc: 'Double validation capitaine, tie-break intégré.' },
-  { icon: Trophy, title: 'Progresse avec ton niveau', desc: 'ELO 1-10 ajusté après chaque match.' },
+// Codes couleur alignés Emergent d5ac086 FriendlyMatchPage.js:346-370 :
+// orange / green / blue / violet pour les 4 étapes (icône + bg 13% alpha).
+interface Feature {
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  title: string;
+  desc: string;
+  iconColor: string;
+  iconBg: string;
+}
+
+const FEATURES: Feature[] = [
+  {
+    icon: Users,
+    title: 'Invite 3 joueurs',
+    desc: 'Choisis ton partenaire et les 2 adversaires.',
+    iconColor: '#E8650A',
+    iconBg: '#FFF0E6',
+  },
+  {
+    icon: Check,
+    title: 'Lance dès que tous prêts',
+    desc: 'Chacun accepte, le match démarre.',
+    iconColor: '#16A34A',
+    iconBg: '#F0FDF4',
+  },
+  {
+    icon: TrendingUp,
+    title: 'Score en temps réel',
+    desc: 'Double validation capitaine, tie-break intégré.',
+    iconColor: '#2563EB',
+    iconBg: '#EFF6FF',
+  },
+  {
+    icon: Trophy,
+    title: 'Progresse avec ton niveau',
+    desc: 'ELO 1-10 ajusté après chaque match.',
+    iconColor: '#7C3AED',
+    iconBg: '#F5F3FF',
+  },
 ];
 
 function FriendlyMatchLanding({ onRegister }: { onRegister: () => void }) {
+  const router = useRouter();
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 80 }} className="bg-brand-bg">
+      {/* ── Hero navy centré — port FriendlyMatchPage.js Emergent d5ac086 ── */}
       <LinearGradient
-        colors={['#1A2A4A', '#2A4A6A']}
+        colors={['#1A2A4A', '#2A4A6A', '#1A3A5A']}
+        locations={[0, 0.6, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingHorizontal: 24, paddingTop: 40, paddingBottom: 48 }}
+        style={{
+          paddingHorizontal: 24,
+          paddingTop: 48,
+          paddingBottom: 40,
+          alignItems: 'center',
+        }}
       >
-        <View className="self-start rounded-full bg-brand-orange/20 px-3 py-1">
-          <Text variant="caption" className="font-heading-black text-brand-orange text-[11px]">
-            MATCH AMICAL
-          </Text>
+        {/* Icône Swords dans carré orange 72×72 */}
+        <View
+          className="h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-brand-orange"
+          style={{
+            shadowColor: '#E8650A',
+            shadowOpacity: 0.4,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 10,
+          }}
+        >
+          <Swords size={34} color="#FFFFFF" />
         </View>
-        <Text className="mt-3 font-heading-black text-[28px] leading-[32px] text-white">
-          Joue, score,{'\n'}
-          <Text className="text-brand-orange font-heading-black">progresse.</Text>
+
+        {/* Titre + sous-titre */}
+        <Text
+          className="mt-5 font-heading-black text-white text-center"
+          style={{ fontSize: 30, lineHeight: 34 }}
+        >
+          Match Amical
         </Text>
-        <Text variant="caption" className="mt-3 text-white/70">
-          Lance un match amical entre amis. Score en temps réel, niveau ELO qui évolue à chaque
-          partie.
+        <Text
+          className="mt-2.5 text-center"
+          style={{ fontSize: 15, lineHeight: 22, color: 'rgba(255,255,255,0.65)' }}
+        >
+          Défie tes amis, score en live{'\n'}et progresse avec ton Niveau
+        </Text>
+
+        {/* CTA orange "Commencer la partie" */}
+        <Pressable
+          onPress={onRegister}
+          accessibilityRole="button"
+          className="mt-8 flex-row items-center justify-center rounded-[18px] bg-brand-orange px-9"
+          style={{
+            height: 52,
+            shadowColor: '#E8650A',
+            shadowOpacity: 0.45,
+            shadowRadius: 14,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 10,
+          }}
+        >
+          <Play size={18} color="#FFFFFF" fill="#FFFFFF" />
+          <Text
+            className="ml-2.5 font-heading-black text-white"
+            style={{ fontSize: 16, lineHeight: 20 }}
+          >
+            Commencer la partie
+          </Text>
+        </Pressable>
+
+        {/* Disclaimer inscription */}
+        <Text
+          className="mt-3 text-center"
+          style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}
+        >
+          Gratuit · Inscription en 30 secondes
         </Text>
       </LinearGradient>
 
-      <View className="-mt-6 gap-3 px-5">
-        {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-          <Card key={title}>
-            <View className="flex-row items-start gap-3">
-              <View className="h-10 w-10 items-center justify-center rounded-2xl bg-brand-orange-light">
-                <Icon size={18} color="#E8650A" />
+      {/* ── Section "Comment ça marche ?" — nos 4 étapes (conservées) ── */}
+      <View className="px-5 pt-7">
+        <Text
+          variant="h3"
+          className="mb-4 text-center text-[16px]"
+        >
+          Comment ça marche ?
+        </Text>
+
+        <View className="gap-3">
+          {FEATURES.map(({ icon: Icon, title, desc, iconColor, iconBg }, i) => (
+            <Card key={title}>
+              <View className="flex-row items-start gap-3">
+                <View
+                  className="h-10 w-10 items-center justify-center rounded-2xl"
+                  style={{ backgroundColor: iconBg }}
+                >
+                  <Icon size={18} color={iconColor} />
+                </View>
+                <View className="flex-1">
+                  <Text variant="body-medium" className="text-[13px]">
+                    {i + 1}. {title}
+                  </Text>
+                  <Text variant="caption" className="mt-0.5 text-[12px]">
+                    {desc}
+                  </Text>
+                </View>
               </View>
-              <View className="flex-1">
-                <Text variant="body-medium" className="text-[13px]">
-                  {i + 1}. {title}
-                </Text>
-                <Text variant="caption" className="mt-0.5 text-[12px]">{desc}</Text>
-              </View>
-            </View>
-          </Card>
-        ))}
+            </Card>
+          ))}
+        </View>
       </View>
 
+      {/* ── CTA final "Prêt à jouer ?" — port Emergent d5ac086 FriendlyMatchPage.js:390-406 ── */}
       <View className="mt-6 px-5">
-        <Button
-          label="Créer mon compte gratuitement"
-          leftIcon={<ArrowRight size={18} color="#FFFFFF" />}
-          onPress={onRegister}
-        />
+        <LinearGradient
+          colors={['#1A2A4A', '#2A4A6A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            borderRadius: 20,
+            paddingHorizontal: 20,
+            paddingTop: 24,
+            paddingBottom: 24,
+            alignItems: 'center',
+          }}
+        >
+          <Text
+            className="font-heading-black text-white text-center"
+            style={{ fontSize: 18, lineHeight: 22 }}
+          >
+            Prêt à jouer ?
+          </Text>
+          <Text
+            className="mt-1.5 text-center"
+            style={{ fontSize: 12, lineHeight: 17, color: 'rgba(255,255,255,0.55)' }}
+          >
+            Rejoins des milliers de joueurs sur PlaceToPadel
+          </Text>
+
+          <Pressable
+            onPress={onRegister}
+            accessibilityRole="button"
+            className="mt-5 flex-row items-center justify-center rounded-2xl bg-brand-orange px-8"
+            style={{
+              height: 48,
+              shadowColor: '#E8650A',
+              shadowOpacity: 0.35,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 8,
+            }}
+          >
+            <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
+            <Text
+              className="ml-2 font-heading-black text-white"
+              style={{ fontSize: 15, lineHeight: 18 }}
+            >
+              Commencer la partie
+            </Text>
+          </Pressable>
+
+          {/* Lien "Déjà inscrit ? Se connecter" */}
+          <View className="mt-3 flex-row items-center">
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+              Déjà inscrit ?{' '}
+            </Text>
+            <Pressable
+              onPress={() => router.push('/(auth)/login')}
+              hitSlop={6}
+              accessibilityRole="link"
+            >
+              <Text
+                className="font-heading-black text-brand-orange"
+                style={{ fontSize: 11 }}
+              >
+                Se connecter
+              </Text>
+            </Pressable>
+          </View>
+        </LinearGradient>
       </View>
     </ScrollView>
   );
