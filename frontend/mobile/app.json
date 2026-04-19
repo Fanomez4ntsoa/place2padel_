@@ -40,6 +40,13 @@
           "cameraPermission": "PlaceToPadel a besoin d'accéder à la caméra pour scanner les QR codes de tournoi."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PlaceToPadel utilise tes photos pour mettre à jour ta photo de profil.",
+          "cameraPermission": "PlaceToPadel utilise la caméra pour prendre une photo de profil."
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "experiments": {

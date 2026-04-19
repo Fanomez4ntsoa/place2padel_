@@ -31,6 +31,28 @@ export function useFeed(filter: FeedFilter) {
   });
 }
 
+/**
+ * GET /profile/{uuid}/posts — posts "libres" (tournament_id null) d'un user.
+ * Backend : décision produit = masque les posts salon pour garder le fil
+ * profil lisible. Pagination identique à /feed.
+ */
+export function useProfilePosts(uuid: string | undefined) {
+  return useInfiniteQuery<FeedPage>({
+    queryKey: ['profile-posts', uuid],
+    enabled: !!uuid,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam = 1 }) => {
+      const { data } = await api.get(`/profile/${uuid}/posts`, {
+        params: { page: pageParam as number, per_page: 20 },
+      });
+      return data as FeedPage;
+    },
+    getNextPageParam: (last) =>
+      last.meta.current_page < last.meta.last_page ? last.meta.current_page + 1 : undefined,
+    staleTime: 30_000,
+  });
+}
+
 export function flattenFeed(data: InfiniteData<FeedPage> | undefined): FeedPost[] {
   if (!data) return [];
   return data.pages.flatMap((p) => p.data);
@@ -39,6 +61,9 @@ export function flattenFeed(data: InfiniteData<FeedPage> | undefined): FeedPost[
 /**
  * Toggle like optimiste — met à jour `liked_by_viewer` + `likes_count`
  * dans toutes les pages de feed en cache avant le retour réseau.
+ *
+ * Invalide également `['profile-posts']` (toutes les instances) pour que
+ * la tab Posts du profil reflète le changement au retour sur l'écran.
  */
 export function useToggleLike(filter: FeedFilter) {
   const qc = useQueryClient();
@@ -71,6 +96,9 @@ export function useToggleLike(filter: FeedFilter) {
     },
     onError: (_err, _uuid, ctx) => {
       if (ctx?.prev) qc.setQueryData(['feed', filter], ctx.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['profile-posts'] });
     },
   });
 }
@@ -113,6 +141,10 @@ export function useCreateComment(postUuid: string, filter: FeedFilter) {
           })),
         });
       }
+      // Refresh profile-posts (toutes les instances) — le compteur
+      // comments_count est stocké par la resource et doit être à jour
+      // à la prochaine visite de la tab Posts du profil.
+      qc.invalidateQueries({ queryKey: ['profile-posts'] });
     },
   });
 }
