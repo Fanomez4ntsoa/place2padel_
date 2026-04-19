@@ -114,7 +114,7 @@ function CockpitPreview({
           colors={['#1A2A4A', '#2A4A6A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12 }}
+          style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 }}
         >
           <Text className="font-heading-black text-white" style={{ fontSize: 20 }}>
             Rejoins PlaceToPadel 🎾
@@ -207,7 +207,7 @@ function PreviewRoleCard({
   return (
     <Pressable
       onPress={onPress}
-      className="flex-row items-center gap-2.5 rounded-2xl p-2.5"
+      className="flex-row items-center gap-3 rounded-2xl p-3"
       style={{
         backgroundColor: styles.cardBg,
         borderWidth: 1.5,
@@ -215,31 +215,31 @@ function PreviewRoleCard({
       }}
     >
       <View
-        className="h-10 w-10 items-center justify-center rounded-xl"
-        style={{ backgroundColor: styles.iconBg }}
+        className="items-center justify-center rounded-xl"
+        style={{ width: 44, height: 44, backgroundColor: styles.iconBg }}
       >
-        <Icon size={18} color={styles.iconColor} />
+        <Icon size={20} color={styles.iconColor} />
       </View>
       <View className="flex-1">
         <Text
-          className="font-heading-black text-[14px]"
-          style={{ color: styles.titleColor, marginBottom: 2, lineHeight: 17 }}
+          className="font-heading-black text-[15px]"
+          style={{ color: styles.titleColor, marginBottom: 2, lineHeight: 18 }}
         >
           {title}
         </Text>
-        <Text style={{ fontSize: 10.5, color: styles.subColor, lineHeight: 14 }}>
+        <Text style={{ fontSize: 11, color: styles.subColor, lineHeight: 15 }}>
           {subtitle}
         </Text>
-        <View className="mt-1 flex-row flex-wrap" style={{ gap: 3 }}>
+        <View className="mt-1.5 flex-row flex-wrap" style={{ gap: 4 }}>
           {chips.map((chip) => (
             <View
               key={chip}
-              className="rounded-full"
-              style={{ backgroundColor: styles.chipBg, paddingHorizontal: 6, paddingVertical: 1 }}
+              className="rounded-full px-2 py-0.5"
+              style={{ backgroundColor: styles.chipBg }}
             >
               <Text
                 className="font-heading"
-                style={{ fontSize: 9.5, color: styles.chipColor, lineHeight: 12 }}
+                style={{ fontSize: 10, color: styles.chipColor, lineHeight: 13 }}
               >
                 {chip}
               </Text>
