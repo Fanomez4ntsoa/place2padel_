@@ -114,32 +114,32 @@ function CockpitPreview({
           colors={['#1A2A4A', '#2A4A6A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 }}
+          style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12 }}
         >
-          <Text variant="h2" className="text-white" style={{ fontSize: 22 }}>
+          <Text className="font-heading-black text-white" style={{ fontSize: 20 }}>
             Rejoins PlaceToPadel 🎾
           </Text>
-          <Text variant="caption" className="mt-1 text-white/60" style={{ fontSize: 12 }}>
+          <Text className="mt-0.5 text-white/60" style={{ fontSize: 11 }}>
             Choisis ton profil pour commencer
           </Text>
         </LinearGradient>
 
         {/* Barre "Tu as déjà un compte ? · Se connecter →" */}
-        <View className="flex-row items-center justify-between border-b border-brand-border bg-white px-5 py-2.5">
-          <Text variant="caption" className="text-[13px]">
+        <View className="flex-row items-center justify-between border-b border-brand-border bg-white px-5 py-2">
+          <Text className="text-[12px] text-brand-muted">
             Tu as déjà un compte&nbsp;?
           </Text>
           <Pressable
             onPress={onLogin}
-            className="rounded-full bg-brand-navy px-4 py-1.5"
+            className="rounded-full bg-brand-navy px-3.5 py-1"
             hitSlop={6}
           >
-            <Text className="font-heading text-[13px] text-white">Se connecter →</Text>
+            <Text className="font-heading text-[12px] text-white">Se connecter →</Text>
           </Pressable>
         </View>
 
-        {/* 3 cartes */}
-        <View className="gap-3 px-4 pb-4 pt-3.5">
+        {/* 3 cartes — taille compacte alignée Emergent d5ac086 pour tenir dans Pixel 7 */}
+        <View className="gap-2 px-4 pb-4 pt-2.5">
           {/* Joueur — fond orange light + border orange */}
           <PreviewRoleCard
             icon={UserIcon}
@@ -207,44 +207,47 @@ function PreviewRoleCard({
   return (
     <Pressable
       onPress={onPress}
-      className="flex-row items-center gap-3.5 rounded-[20px] p-4"
+      className="flex-row items-center gap-2.5 rounded-2xl p-2.5"
       style={{
         backgroundColor: styles.cardBg,
-        borderWidth: 2,
+        borderWidth: 1.5,
         borderColor: styles.cardBorder,
       }}
     >
       <View
-        className="h-12 w-12 items-center justify-center rounded-[14px]"
+        className="h-10 w-10 items-center justify-center rounded-xl"
         style={{ backgroundColor: styles.iconBg }}
       >
-        <Icon size={22} color={styles.iconColor} />
+        <Icon size={18} color={styles.iconColor} />
       </View>
       <View className="flex-1">
         <Text
-          className="font-heading-black text-[16px]"
-          style={{ color: styles.titleColor, marginBottom: 4 }}
+          className="font-heading-black text-[14px]"
+          style={{ color: styles.titleColor, marginBottom: 2, lineHeight: 17 }}
         >
           {title}
         </Text>
-        <Text className="text-[11px]" style={{ color: styles.subColor, lineHeight: 16 }}>
+        <Text style={{ fontSize: 10.5, color: styles.subColor, lineHeight: 14 }}>
           {subtitle}
         </Text>
-        <View className="mt-2 flex-row flex-wrap gap-1.5">
+        <View className="mt-1 flex-row flex-wrap" style={{ gap: 3 }}>
           {chips.map((chip) => (
             <View
               key={chip}
-              className="rounded-full px-2 py-0.5"
-              style={{ backgroundColor: styles.chipBg }}
+              className="rounded-full"
+              style={{ backgroundColor: styles.chipBg, paddingHorizontal: 6, paddingVertical: 1 }}
             >
-              <Text className="font-heading text-[10px]" style={{ color: styles.chipColor }}>
+              <Text
+                className="font-heading"
+                style={{ fontSize: 9.5, color: styles.chipColor, lineHeight: 12 }}
+              >
                 {chip}
               </Text>
             </View>
           ))}
         </View>
       </View>
-      <ArrowRight size={18} color={styles.arrowColor} />
+      <ArrowRight size={16} color={styles.arrowColor} />
     </Pressable>
   );
 }
