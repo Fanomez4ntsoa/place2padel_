@@ -81,6 +81,32 @@ export function useUpdateProfile(uuid: string | undefined) {
 }
 
 /**
+ * POST /profile/photo — upload multipart de l'avatar. Attend un objet RN
+ * compatible (uri + name + type) depuis expo-image-picker (ImagePickerAsset
+ * converti via helper côté caller). Invalide le cache profil pour forcer
+ * le re-fetch avec la nouvelle picture_url (S3 path absolu).
+ */
+export function useUploadProfilePhoto(uuid: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (asset: { uri: string; name: string; type: string }) => {
+      const form = new FormData();
+      // RN FormData accepte le type spécifique `{ uri, name, type }` qui n'est
+      // pas dans la def DOM standard — cast pour satisfaire TS sans perdre la
+      // sémantique runtime.
+      form.append('image', asset as unknown as Blob);
+      const { data } = await api.post('/profile/photo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data.data as ProfilePayload;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['profile', uuid] });
+    },
+  });
+}
+
+/**
  * Helper — retourne le nom du club principal (priority 1) ou null.
  * Remplace l'ancien `user.club?.name` après migration multi-clubs.
  */
